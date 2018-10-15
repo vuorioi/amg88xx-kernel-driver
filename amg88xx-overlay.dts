@@ -1,0 +1,25 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&i2c1>;
+		
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			/* We're asumming that 0x69 is used as the device address
+			   instead of 0x68 */
+			amg88xx: amg88xx@69 {
+				compatible = "panasonic,amg88xx";
+				reg = <0x69>;
+
+				/* TODO interrupt line */
+			};
+		};
+	};
+};
