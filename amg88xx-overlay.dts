@@ -1,3 +1,5 @@
+/* This is a simple device tree overlay for RPi */
+
 /dts-v1/;
 /plugin/;
 
@@ -12,14 +14,16 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			/* We're asumming that 0x69 is used as the device address
-			   instead of 0x68 */
-			amg88xx: amg88xx@69 {
+			amg88xx: amg88xx@68 {
 				compatible = "panasonic,amg88xx";
-				reg = <0x69>;
+				reg = <0x68>;
+				status = "okay";
 
-				/* TODO interrupt line */
+				/* TODO provide support for the 
+				   interrupt line */
 			};
 		};
 	};
 };
+
+/* TODO add support for load time parameters */
