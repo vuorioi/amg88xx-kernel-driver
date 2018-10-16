@@ -46,10 +46,9 @@ Before the device can be used it must be set to _normal_ or one of the _stand-by
 **The sysfs interface is not fully implemented!**
 This driver exposes the following sysfs files:
  * `device_mode` i2c register: PCTL
-   * reading this file returns the device mode in hex format
-   * writing a correct hex value to this file sets the device mode
+   * reading this file returns the device mode in hex encoding
+   * writing a correct hex encoded value to this file sets the device mode
  * `thermistor` i2c registers: TTHL and TTHH.
-   * reading this file returns the thermistor output in celcius scale
+   * reading this file returns the thermistor output in hex encoding
  * `sensor` i2c registers: T01L to 0xFF
-   * reading this file returns the 8x8 array containing the sensor values
-     in celcius scale
+   * reading this file returns the 8x8 array containing the sensor values in hex encoding
