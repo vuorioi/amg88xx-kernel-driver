@@ -24,7 +24,7 @@ for the amg88xx sensor. This repo provides a sample device tree overlay for Rasp
 
 Compile the device tree overlay with `dtc`:
 ```dtc -W no-unit_address_vs_reg -O dtb -I dts -o amg88xx.dtbo amg88xx-overlay.dts```
-and load it with `dtoverlay`:
+And load it with `dtoverlay`:
 ```sudo dtoverlay amg88xx.dtbo```
 
 Finally load the module:
@@ -32,7 +32,15 @@ Finally load the module:
 
 The sysfs entries are found in the `/sys/bus/i2c/device/<device_name>/` directory. You can find
 the right `device_name` by running the following command:
-```ls /sys/bus/i2c/devices/* | grep amg88xx */name```
+```cd /sys/bus/i2c/devices/ && ls * | grep amg88xx */name```
+
+Before the device can be used it must be set to _normal_ or one of the _stand-by_ modes:
+```sudo sh -c "echo <mode> > device_mode"```
+`mode` can be any on of the following:
+ * 0x0 Normal mode
+ * 0x10 Sleep mode
+ * 0x20 Stand-by mode (60 s)
+ * 0x21 Stand-by mode (10 s)
 
 ## sysfs interface
 **The sysfs interface is not fully implemented!**
