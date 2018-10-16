@@ -216,7 +216,7 @@ static ssize_t show_sensor(struct device *dev, struct device_attribute *attr,
 			   and there is newline character after the last value */
 			nwrite = scnprintf(&buf[index],
 					   PAGE_SIZE - (index - 1),
-					   col < 7 ? "%d, " : "%d\n",
+					   col < 7 ? "%x, " : "%x\n",
 					   sensor_array[row*8 + col]);
 			index += nwrite + 1;
 		}
@@ -241,7 +241,8 @@ static ssize_t show_thermistor(struct device *dev, struct device_attribute *attr
 		return ret;
 	}
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n", thermistor_value);
+	// Convert to celcius scale
+	return scnprintf(buf, PAGE_SIZE, "%x\n", thermistor_value);
 }
 static DEVICE_ATTR(thermistor, S_IRUGO, show_thermistor, NULL);
 
