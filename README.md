@@ -2,9 +2,9 @@
 This is a simple Linux device driver for the Panasonic amg88xx-series thermal cameras.
 **This project is still in a very early stage!**
 
-The amg88xx sensors use i2c-interface and a single interrupt line for communication.
+The amg88xx sensors use the i2c-interface and a single interrupt line for communication.
 This driver exposes the i2c registers to userspace via sysfs. Some extra features are
-also exposed, please take a look at the _sysfs interface_ chapter for more info.
+also exposed, please take a look at the [sysfs interface](#sysfs-interface) chapter for more info.
 
 ## TODO
 - [ ] add support for the device interrupt
