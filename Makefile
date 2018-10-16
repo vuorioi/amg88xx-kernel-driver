@@ -1,6 +1,6 @@
 obj-m := amg88xx.o
 
-SRC := $(shell pdw)
+SRC := $(shell pwd)
 KERNEL_SRC := /lib/modules/$(shell uname -r)/build
 
 all:
