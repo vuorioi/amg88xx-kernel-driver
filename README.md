@@ -57,6 +57,21 @@ This driver exposes the following sysfs files:
  * `device_mode` i2c register: _PCTL_
    * reading this file returns the device mode in hex encoding
    * writing a correct hex encoded value to this file sets the device mode
+ * `interrupt` i2c register: _INTC_ bit 0
+   * reading this file returns the value of interrupt enabled bit:
+     * `enabled` interrupt line is in use
+     * `disabled` interrupt line is not in use
+   * writing this file changes the interrupt enabled bit
+ * `interrupt_mode` i2c register: _INTC_ bit 1
+   * reading this file returns the value interrupt mode bit:
+     * `absolute`
+     * `differential` TODO what is the difference between the two
+   * writing this file changes the interrupt mode bit
+ * `interrupt_levels` i2c registers: _INTHL_ to _IHYSH_
+   * reading this file returns the interrupt upper and lower limits and the
+     hysteresis in the following format: `upper,lower,hysteresis`
+   * writing this file sets the interrupt limits and hysteresis. All three values must be writen
+     at the same time
  * `thermistor` i2c registers: _TTHL_ and _TTHH_.
    * reading this file returns the thermistor output in hex encoding
  * `sensor` i2c registers: _T01L_ to _0xFF_
