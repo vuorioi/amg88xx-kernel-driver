@@ -7,6 +7,17 @@
 	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
 
 	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			amg88xx_pins: amg88xx_pins {
+				brcm,pins = <4>; // Pin: GPIO04
+				brcm,function = <0>; // Direction: in
+				brcm,pull = <2>; // Pull-up enabled 
+			};
+		};
+	};
+
+	fragment@1 {
 		target = <&i2c1>;
 		
 		__overlay__ {
@@ -14,16 +25,28 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			amg88xx: amg88xx@68 {
+			amg88xx: amg88xx_node {
 				compatible = "panasonic,amg88xx";
 				reg = <0x68>;
-				status = "okay";
-
-				/* TODO provide support for the 
-				   interrupt line */
+				
+				pinctrl-names = "default";
+				pinctrl-0 = <&amg88xx_pins>;
+				
+				interrupt-parent = <&gpio>;
+				 // Pin: GPIO04, high-to-low edge
+				interrupts = <4 2>;
 			};
 		};
 	};
+	
+	// Load time parameters
+	__overrides__ {
+		// i2c slave adress (default: 0x68)
+		slave-address = <&amg88xx>,"reg.0";
+		
+		// interrupt pin (default: GPIO04)
+		interrupt = <&amg88xx>,"brcm,pins:0",
+			<&amg88xx>,"interrupts:0";
+	};
 };
 
-/* TODO add support for load time parameters */
