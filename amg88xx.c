@@ -23,65 +23,80 @@
 #include <linux/i2c.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 
 #define DRIVER_NAME "amg88xx"
 
 /* i2c register addresses */
-#define DEVICE_MODE_REG 0x00
-#define RESET_REG 0x01
-#define FRAME_RATE_REG 0x02
-#define INTERRUPT_MODE_REG 0x03
-#define XXX_REG 0x04
-#define MOVING_AVERAGE_REG 0x07
-#define UPPER_INTERRUPT_LOW_REG 0x08
+#define DEVICE_MODE_REG		 0x00
+#define RESET_REG		 0x01 //TODO
+#define FRAME_RATE_REG		 0x02 //TODO
+#define INTERRUPT_CTRL_REG	 0x03
+#define STATUS_FLAG_REG		 0x04 //TODO | one sysfs entry
+#define STATUS_FLAG_CLR_REG	 0x05 //TODO |
+#define MOVING_AVERAGE_REG	 0x07 //TODO
+#define UPPER_INTERRUPT_LOW_REG  0x08
 #define UPPER_INTERRUPT_HIGH_REG 0x09
-#define LOWER_INTERRUPT_LOW_REG 0x0a
+#define LOWER_INTERRUPT_LOW_REG	 0x0a
 #define LOWER_INTERRUPT_HIGH_REG 0x0b
-#define INTERRUPT_HYST_LOW_REG 0x0c
-#define INTERRUPT_HYST_HIGH_REG 0x0d
-#define THERM_LOW_REG 0x0e
-#define THERM_HIGH_REG 0x0f
-#define PIXEL_ROW1_REG 0x10
-#define PIXEL_ROW2_REG 0x11
-#define PIXEL_ROW3_REG 0x12
-#define PIXEL_ROW4_REG 0x13
-#define PIXEL_ROW5_REG 0x14
-#define PIXEL_ROW6_REG 0x15
-#define PIXEL_ROW7_REG 0x16
-#define PIXEL_ROW8_REG 0x17
-#define SENSOR_FIRST_REG 0x80 // Pixel 1 low bits register
-#define SENSOR_LAST_REG 0xFF // Pixel 64 high bits register
+#define INTERRUPT_HYST_LOW_REG	 0x0c
+#define INTERRUPT_HYST_HIGH_REG  0x0d
+#define THERM_LOW_REG		 0x0e
+#define THERM_HIGH_REG		 0x0f
+#define PIXEL_ROW1_REG		 0x10 //TODO | one sysfs entry
+#define PIXEL_ROW2_REG		 0x11 //TODO |
+#define PIXEL_ROW3_REG		 0x12 //TODO |
+#define PIXEL_ROW4_REG		 0x13 //TODO |
+#define PIXEL_ROW5_REG		 0x14 //TODO |
+#define PIXEL_ROW6_REG		 0x15 //TODO |
+#define PIXEL_ROW7_REG		 0x16 //TODO |
+#define PIXEL_ROW8_REG		 0x17 //TODO |
+#define SENSOR_FIRST_REG	 0x80 // Pixel 1 low bits register
+#define SENSOR_LAST_REG		 0xFF // Pixel 64 high bits register
 
 /* Low level access helper functions */
-static inline int amg88xx_write_register(struct i2c_client *client, u8 reg_addr, u8 value)
+static inline int amg88xx_write8(struct i2c_client *client, u8 reg_addr, u8 value)
 {
 	return i2c_smbus_write_byte_data(client, reg_addr, value);
 }
 
-static inline int amg88xx_read_register(struct i2c_client *client, u8 reg_addr)
+static inline int amg88xx_read8(struct i2c_client *client, u8 reg_addr)
 {
 	return i2c_smbus_read_byte_data(client, reg_addr);
 }
 
-static int amg88xx_read16b_register(struct i2c_client *client, u8 regl, u8 regh)
+static int amg88xx_read16(struct i2c_client *client, u8 regl, u8 regh)
 {
 	int ret;
 	int val;
 
 	// First get the high bits and then the low bits
-	ret = amg88xx_read_register(client, regh);
+	ret = amg88xx_read8(client, regh);
 	if (ret < 0)
 		return ret;
 	else
 		val = ret << 8;
 
-	ret = amg88xx_read_register(client, regl);
+	ret = amg88xx_read8(client, regl);
 	if (ret < 0)
 		return ret;
 	else
 		val |= ret;
 
 	return val;
+}
+
+static int amg88xx_write16(struct i2c_client *client, u8 regl, u8 regh, u16 value)
+{
+	int ret;
+
+	// Write the low register first and then the high register
+	ret = amg88xx_write8(client, regl, (u8)value);
+	if (ret < 0)
+		return ret;
+
+	return amg88xx_write8(client, regh, (u8)(value >> 8));
+	
 }
 
 /* Device configuration options that are mapped to register values */
@@ -100,7 +115,7 @@ enum amg88xx_fps {
 	FPS1 = 1 };
 
 enum amg88xx_interrupt_mode {
-	DIFFERENCE_MODE = 0,
+	DIFFERENCE_MODE = 0, //FIXME
 	ABSOLUTE_VALUE_MODE = 1 };
 
 enum amg88xx_interrupt_state {
@@ -110,40 +125,19 @@ enum amg88xx_interrupt_state {
 /* Structure for holding device related data */
 struct amg88xx {
 	struct i2c_client *client;
-	
-	/*s16 temp_array[8*8];
-
-	enum amg88xx_device_mode dev_mode;
-	enum amg88xx_fps fps;
-
-	enum amg88xx_interrupt_mode int_mode;
-	enum amg88xx_interrupt_state int_sate;
-	u8 interrupt_array[8];
-
-	s16 int_trigger_level_high : 11;
-	s16 int_trigger_level_low : 11;
-	s16 int_trigger_hysteresis : 11;
-
-	u8 thermistor_overflow : 1;
-	u8 sensor_overflow : 1;
-	u8 interrupt_active : 1;
-
-	u8 twice_moving_average_mode : 1;
-
-	s16 thermistor_value : 11;*/
 };
 
 /* Helper functions for device access */
 static inline int amg88xx_set_dev_mode(struct amg88xx *dev, enum amg88xx_device_mode mode)
 {
-	return amg88xx_write_register(dev->client, DEVICE_MODE_REG, mode);
+	return amg88xx_write8(dev->client, DEVICE_MODE_REG, mode);
 }
 
 static int amg88xx_get_dev_mode(struct amg88xx *dev, int *result)
 {
 	int ret;
 
-	ret = amg88xx_read_register(dev->client, DEVICE_MODE_REG);
+	ret = amg88xx_read8(dev->client, DEVICE_MODE_REG);
 	if (ret < 0)
 		return ret;
 	else
@@ -154,15 +148,137 @@ static int amg88xx_get_dev_mode(struct amg88xx *dev, int *result)
 
 static inline int amg88xx_reset(struct amg88xx *dev)
 {
-	// Performe a "soft reset"
-	return amg88xx_write_register(dev->client, RESET_REG, PARTIAL_RST);
+	return amg88xx_write8(dev->client, RESET_REG, PARTIAL_RST);
+}
+
+static int amg88xx_get_int_conf(struct amg88xx *dev, int *mode, int *enabled)
+{
+	int ret;
+
+	ret = amg88xx_read8(dev->client, INTERRUPT_CTRL_REG);
+	if (ret < 0) {
+		return ret;
+	} else {
+		*mode = ret & 0x2;
+		*enabled = ret & 0x1;
+	}
+
+	return 0;
+}
+
+static int amg88xx_set_int_mode(struct amg88xx *dev, enum amg88xx_interrupt_mode mode)
+{
+	int ret;
+	u8 val;
+
+	ret = amg88xx_read8(dev->client, INTERRUPT_CTRL_REG);
+	if (ret < 0) {
+		return ret;
+	} else {
+		if (mode)
+			val = ret | 0x2;
+		else
+			val = ret & ~(0x2);
+	}
+
+	return amg88xx_write8(dev->client, INTERRUPT_CTRL_REG, val);
+}
+
+static int amg88xx_set_int_state(struct amg88xx *dev, enum amg88xx_interrupt_state state)
+{
+	int ret;
+	u8 val;
+
+	ret = amg88xx_read8(dev->client, INTERRUPT_CTRL_REG);
+	if (ret < 0) {
+		return ret;
+	} else {
+		if (state)
+			val = ret | 0x1;
+		else
+			val = ret & ~(0x1);
+	}
+
+	return amg88xx_write8(dev->client, INTERRUPT_CTRL_REG, val);
+}
+
+static int amg88xx_get_int_upper_limit(struct amg88xx *dev, s16 *limit)
+{
+	int ret;
+
+	ret = amg88xx_read16(dev->client, 
+			     UPPER_INTERRUPT_LOW_REG,
+			     UPPER_INTERRUPT_HIGH_REG);
+	if (ret < 0) {
+		return ret;
+	} else {
+		*limit = (s16)ret;
+	}
+
+	return 0;
+}
+
+static int amg88xx_get_int_lower_limit(struct amg88xx *dev, s16 *limit)
+{
+	int ret;
+
+	ret = amg88xx_read16(dev->client,
+			     LOWER_INTERRUPT_LOW_REG,
+			     LOWER_INTERRUPT_HIGH_REG);
+	if (ret < 0) {
+		return ret;
+	} else {
+		*limit = (s16)ret;
+	}
+
+	return 0;
+}
+
+static int amg88xx_get_int_hysteresis(struct amg88xx *dev, s16 *hysteresis)
+{
+	int ret;
+
+	ret = amg88xx_read16(dev->client,
+			     INTERRUPT_HYST_LOW_REG,
+			     INTERRUPT_HYST_HIGH_REG);
+	if (ret < 0) {
+		return ret;
+	} else {
+		*hysteresis = (s16)ret;
+	}
+
+	return 0;
+}
+
+static inline int amg88xx_set_int_upper_limit(struct amg88xx *dev, s16 limit)
+{
+	return amg88xx_write16(dev->client,
+			       UPPER_INTERRUPT_LOW_REG,
+			       UPPER_INTERRUPT_HIGH_REG,
+			       (u16)limit);
+}
+
+static inline int amg88xx_set_int_lower_limit(struct amg88xx *dev, s16 limit)
+{
+	return amg88xx_write16(dev->client,
+			       LOWER_INTERRUPT_LOW_REG,
+			       LOWER_INTERRUPT_HIGH_REG,
+			       (u16)limit);
+}
+
+static inline int amg88xx_set_int_hysteresis(struct amg88xx *dev, s16 hysteresis)
+{
+	return amg88xx_write16(dev->client,
+			       INTERRUPT_HYST_LOW_REG,
+			       INTERRUPT_HYST_HIGH_REG,
+			       (u16)hysteresis);
 }
 
 static int amg88xx_read_thermistor(struct amg88xx *dev, int *result)
 {
 	int ret;
 
-	ret = amg88xx_read16b_register(dev->client, THERM_LOW_REG, THERM_HIGH_REG);
+	ret = amg88xx_read16(dev->client, THERM_LOW_REG, THERM_HIGH_REG);
 	if (ret < 0) 
 		return ret;
 	else
@@ -179,7 +295,7 @@ static int amg88xx_read_sensor(struct amg88xx *dev, int *res_array)
 
 	// Loop through all the sensor registers
 	for (index = 0; index < 64; index++) {
-		ret = amg88xx_read16b_register(dev->client, reg_addr, reg_addr + 1);
+		ret = amg88xx_read16(dev->client, reg_addr, reg_addr + 1);
 		if (ret < 0)
 			return ret;
 
@@ -241,7 +357,6 @@ static ssize_t show_thermistor(struct device *dev, struct device_attribute *attr
 		return ret;
 	}
 
-	// Convert to celcius scale
 	return scnprintf(buf, PAGE_SIZE, "%x\n", thermistor_value);
 }
 static DEVICE_ATTR(thermistor, S_IRUGO, show_thermistor, NULL);
@@ -295,11 +410,220 @@ static ssize_t store_device_mode(struct device *dev, struct device_attribute *at
 
 	return count;
 }
-
 static DEVICE_ATTR(device_mode,
 		   S_IRUGO | S_IWUSR | S_IWGRP,
 		   show_device_mode,
 		   store_device_mode);
+
+static ssize_t show_interrupt_mode(struct device *dev, struct device_attribute *attr,
+				   char *buf)
+{
+	struct amg88xx *device;
+	int ret;
+	int mode;
+	int enabled;
+
+	device = dev_get_drvdata(dev);
+
+	ret = amg88xx_get_int_conf(device, &mode, &enabled);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to read interrupt mode\n");
+		return ret;
+	}
+
+	return scnprintf(buf,
+			 PAGE_SIZE,
+			 "%s\n",
+			 mode ? "absolute" : "differential");
+}
+
+static ssize_t store_interrupt_mode(struct device *dev, struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct amg88xx *device;
+	int ret;
+	enum amg88xx_interrupt_mode mode;
+
+	device = dev_get_drvdata(dev);
+
+	if (strncmp("absolute\n", buf, count) == 0) {
+		mode = ABSOLUTE_VALUE_MODE;
+	} else if (strncmp("differential\n", buf, count) == 0) {
+		mode = DIFFERENCE_MODE; //FIXME
+	} else {
+		printk(KERN_ERR "Invalid interrupt mode\n");
+		return -EINVAL;
+	}
+
+	ret = amg88xx_set_int_mode(device, mode);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to set interrupt mode\n");
+		return ret;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(interrupt_mode,
+		   S_IRUGO | S_IWUSR | S_IWGRP,
+		   show_interrupt_mode,
+		   store_interrupt_mode);
+
+static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	struct amg88xx *device;
+	int ret;
+	int mode;
+	int enabled;
+
+	device = dev_get_drvdata(dev);
+
+	ret = amg88xx_get_int_conf(device, &mode, &enabled);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to read interrupt mode\n");
+		return ret;
+	}
+
+	return scnprintf(buf,
+			 PAGE_SIZE,
+			 "%s\n",
+			 enabled ? "enabled" : "disabled");
+}
+
+static ssize_t store_interrupt(struct device *dev, struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct amg88xx *device;
+	int ret;
+	enum amg88xx_interrupt_state state;
+
+	device = dev_get_drvdata(dev);
+
+	if (strncmp("enabled\n", buf, count) == 0) {
+		state = INT_ENABLED;
+	} else if (strncmp("disabled\n", buf, count) == 0) {
+		state = INT_DISABLED;
+	} else {
+		printk(KERN_ERR "Invalid interrupt state\n");
+		return -EINVAL;
+	}
+
+	ret = amg88xx_set_int_state(device, state);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to set interrupt state\n");
+		return ret;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(interrupt,
+		   S_IRUGO | S_IWUSR | S_IWGRP,
+		   show_interrupt,
+		   store_interrupt);
+
+static ssize_t show_interrupt_levels(struct device *dev, struct device_attribute *attr,
+				     char *buf)
+{
+	struct amg88xx *device;
+	s16 upper;
+	s16 lower;
+	s16 hysteresis;
+	int ret;
+
+	device = dev_get_drvdata(dev);
+
+	ret = amg88xx_get_int_upper_limit(device, &upper);
+	if (ret < 0)
+		return ret;
+
+	ret = amg88xx_get_int_lower_limit(device, &lower);
+	if (ret < 0)
+		return ret;
+
+	ret = amg88xx_get_int_hysteresis(device, &hysteresis);
+	if (ret < 0)
+		return ret;
+	
+	return scnprintf(buf, PAGE_SIZE, "%x,%x,%x\n", upper, lower, hysteresis);
+}
+
+static ssize_t store_interrupt_levels(struct device *dev, struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct amg88xx *device;
+	char *temp;
+	u16 values[3];
+	int ret;
+	int i;
+	int index = 0;
+
+	// Allocate a temporary buffer for substring handling
+	temp = kmalloc(count, GFP_KERNEL);
+	if (temp == NULL)
+		return -ENOMEM;
+
+	device = dev_get_drvdata(dev);
+	
+	for (i = 0; i < 3; i++) {
+		const char *substr_end;
+		size_t strl;
+
+		// Calculate the length of the substring and copy it
+		// adding a null terminator to the end
+		substr_end = strchrnul(&buf[index], ',');
+		strl = substr_end - &buf[index];
+
+		strncpy(temp, &buf[index], strl);
+		temp[strl] = '\0';
+
+		// Convert the value to u16 number and check for upper
+		// limit
+		ret = kstrtou16(temp, 16, &values[i]);
+		if (ret < 0) {
+			printk(KERN_ERR "Failed to read value for %s from input\n",
+			       i == 0 ? "upper limit" : (i == 1 ? "lower limit" : "hysteresis"));
+			goto exit;
+		}
+
+		if (values[i] > 0x7ff) {
+			printk(KERN_ERR "Illegal input value for %s\n",
+			       i == 0 ? "upper limit" : (i == 1 ? "lower limit" : "hysteresis"));
+			ret = -EINVAL;
+			goto exit;
+		}
+
+		index += strl + 1;
+	}
+
+	ret = amg88xx_set_int_upper_limit(device, values[0]);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to set the interrupt upper limit\n");
+		return ret;
+	}
+
+	amg88xx_set_int_lower_limit(device, values[1]);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to set the interrupt lower limit\n");
+		return ret;
+	}
+
+	amg88xx_set_int_hysteresis(device, values[2]);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to set the interrupt hysteresis\n");
+		return ret;
+	}
+
+	ret = count;
+	
+exit:
+	kfree(temp);
+
+	return ret;
+}
+static DEVICE_ATTR(interrupt_levels,
+		   S_IRUGO | S_IWUSR | S_IWGRP,
+		   show_interrupt_levels,
+		   store_interrupt_levels);
 
 // TODO all the rest of the sysfs stuff
 // TODO group attributes
@@ -329,6 +653,9 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	device_create_file(&client->dev, &dev_attr_sensor);
 	device_create_file(&client->dev, &dev_attr_thermistor);
 	device_create_file(&client->dev, &dev_attr_device_mode);
+	device_create_file(&client->dev, &dev_attr_interrupt_mode);
+	device_create_file(&client->dev, &dev_attr_interrupt);
+	device_create_file(&client->dev, &dev_attr_interrupt_levels);
 
 	return 0;
 }
@@ -342,6 +669,9 @@ static int amg88xx_remove(struct i2c_client *client)
 	device_remove_file(&client->dev, &dev_attr_sensor);
 	device_remove_file(&client->dev, &dev_attr_thermistor);
 	device_remove_file(&client->dev, &dev_attr_device_mode);
+	device_remove_file(&client->dev, &dev_attr_interrupt_mode);
+	device_remove_file(&client->dev, &dev_attr_interrupt);
+	device_remove_file(&client->dev, &dev_attr_interrupt_levels);
 
 	ret = amg88xx_set_dev_mode(device, SLEEP_MODE);
 	if (ret < 0) {
