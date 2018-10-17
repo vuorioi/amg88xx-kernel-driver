@@ -20,6 +20,7 @@
 
 #include <linux/device.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -125,7 +126,21 @@ enum amg88xx_interrupt_state {
 /* Structure for holding device related data */
 struct amg88xx {
 	struct i2c_client *client;
+	unsigned irq : 1;
 };
+
+/* Interrupt top and bottom-half */
+static irqreturn_t irq_handler(int irq, void *dev)
+{
+	struct amg88xx *device;
+
+	device = (struct amg88xx *)dev;
+
+	ret = amg88xx_write8(device->client, STATUS_FLAG_CLR_REG, 0x1);
+	device->irq = 1;
+
+	return IRQ_HANDLED;
+}
 
 /* Helper functions for device access */
 static inline int amg88xx_set_dev_mode(struct amg88xx *dev, enum amg88xx_device_mode mode)
@@ -628,6 +643,20 @@ static DEVICE_ATTR(interrupt_levels,
 		   show_interrupt_levels,
 		   store_interrupt_levels);
 
+static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	struct amg88xx *device;
+
+	device = dev_get_drvdata(dev);
+
+	ret = scnprintf(buf, PAGE_SIZE, "%s\n", device->irq ? "active" : "not_active");
+	device->irq = 0;
+
+	return ret;
+}
+static DEVICE_ATTR(interrupt, S_IRUGO, show_interrupt, NULL);
+
 // TODO all the rest of the sysfs stuff
 // TODO group attributes
 
@@ -642,6 +671,14 @@ static int amg88xx_probe_new(struct i2c_client *client)
 		return -ENOMEM;
 	else
 		device->client = client;
+
+	ret = devm_request_threaded_irq(&client->dev,
+					client->irq,
+					NULL,
+					irq_handler,
+					IRQF_ONESHOT | IRQF_TRIGGER_FALLING,
+					client->name,
+					device);
 
 	dev_set_drvdata(&client->dev, device);
 
