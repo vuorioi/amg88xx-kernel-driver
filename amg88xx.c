@@ -485,7 +485,7 @@ static DEVICE_ATTR(interrupt_mode,
 		   show_interrupt_mode,
 		   store_interrupt_mode);
 
-static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
+static ssize_t show_interrupt_state(struct device *dev, struct device_attribute *attr,
 			      char *buf)
 {
 	struct amg88xx *device;
@@ -507,7 +507,7 @@ static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
 			 enabled ? "enabled" : "disabled");
 }
 
-static ssize_t store_interrupt(struct device *dev, struct device_attribute *attr,
+static ssize_t store_interrupt_state(struct device *dev, struct device_attribute *attr,
 			       const char *buf, size_t count)
 {
 	struct amg88xx *device;
@@ -533,10 +533,10 @@ static ssize_t store_interrupt(struct device *dev, struct device_attribute *attr
 
 	return count;
 }
-static DEVICE_ATTR(interrupt,
+static DEVICE_ATTR(interrupt_state,
 		   S_IRUGO | S_IWUSR | S_IWGRP,
-		   show_interrupt,
-		   store_interrupt);
+		   show_interrupt_state,
+		   store_interrupt_state);
 
 static ssize_t show_interrupt_levels(struct device *dev, struct device_attribute *attr,
 				     char *buf)
