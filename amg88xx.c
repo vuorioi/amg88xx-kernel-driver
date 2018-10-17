@@ -126,6 +126,7 @@ enum amg88xx_interrupt_state {
 /* Structure for holding device related data */
 struct amg88xx {
 	struct i2c_client *client;
+	struct completion;
 	unsigned irq : 1;
 };
 
@@ -136,8 +137,10 @@ static irqreturn_t irq_handler(int irq, void *dev)
 
 	device = (struct amg88xx *)dev;
 
-	ret = amg88xx_write8(device->client, STATUS_FLAG_CLR_REG, 0x1);
 	device->irq = 1;
+
+	// Sleep until the the irq is actually handled by the userspace
+	wait_for_completion(&device->irq_bottom_handled);
 
 	return IRQ_HANDLED;
 }
@@ -650,6 +653,18 @@ static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
 
 	device = dev_get_drvdata(dev);
 
+	// Clear pending irqs from hw
+	if (device->irq) {
+		ret = amg88xx_write8(device->client, STATUS_FLAG_CLR_REG, 0x1);
+		if (ret < 0) {
+			printk(KERN_ERR "Failed to clear the interrupt flag\n");
+			return ret;
+		}
+	}
+
+	// Signal the irq thread
+	complete(&device->irq_bottom_handled);
+
 	ret = scnprintf(buf, PAGE_SIZE, "%s\n", device->irq ? "active" : "not_active");
 	device->irq = 0;
 
@@ -679,10 +694,17 @@ static int amg88xx_probe_new(struct i2c_client *client)
 					IRQF_ONESHOT | IRQF_TRIGGER_FALLING,
 					client->name,
 					device);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to request a threaded irq\n");
+		return ret;
+	}
+
+	// A completion is used to signal that userspace has handled the irq
+	init_completion(&device->irq_bottom_handled);
 
 	dev_set_drvdata(&client->dev, device);
 
-        ret = amg88xx_reset(device);
+	ret = amg88xx_reset(device);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to reset device\n");
 		return ret;
@@ -694,8 +716,9 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	device_create_file(&client->dev, &dev_attr_thermistor);
 	device_create_file(&client->dev, &dev_attr_device_mode);
 	device_create_file(&client->dev, &dev_attr_interrupt_mode);
-	device_create_file(&client->dev, &dev_attr_interrupt);
+	device_create_file(&client->dev, &dev_attr_interrupt_state);
 	device_create_file(&client->dev, &dev_attr_interrupt_levels);
+	device_create_file(&client->dev, &dev_attr_interrupt);
 
 	return 0;
 }
@@ -710,8 +733,9 @@ static int amg88xx_remove(struct i2c_client *client)
 	device_remove_file(&client->dev, &dev_attr_thermistor);
 	device_remove_file(&client->dev, &dev_attr_device_mode);
 	device_remove_file(&client->dev, &dev_attr_interrupt_mode);
-	device_remove_file(&client->dev, &dev_attr_interrupt);
+	device_remove_file(&client->dev, &dev_attr_interrupt_state);
 	device_remove_file(&client->dev, &dev_attr_interrupt_levels);
+	device_remove_file(&client->dev, &dev_attr_interrupt);
 
 	ret = amg88xx_set_dev_mode(device, SLEEP_MODE);
 	if (ret < 0) {
