@@ -328,8 +328,10 @@ static ssize_t show_sensor(struct device *dev, struct device_attribute *attr,
 
 	for (row = 0; row < 8; row++) {
 		for (col = 0; col < 8; col++) {
-			/* Write all the values on a row. Each value is sepparated by a comma
-			   and there is newline character after the last value */
+			/* 
+			 * Write all the values on a row. Each value is sepparated by a comma
+			 *  and there is newline character after the last value
+			 */
 			nwrite = scnprintf(&buf[index],
 					   PAGE_SIZE - (index - 1),
 					   col < 7 ? "%x, " : "%x\n",
@@ -568,16 +570,17 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 		const char *substr_end;
 		size_t strl;
 
-		// Calculate the length of the substring and copy it
-		// adding a null terminator to the end
+		/* 
+		 * Calculate the length of the substring and copy it adding a null
+		 * terminator to the end
+		 */
 		substr_end = strchrnul(&buf[index], ',');
 		strl = substr_end - &buf[index];
 
 		strncpy(temp, &buf[index], strl);
 		temp[strl] = '\0';
 
-		// Convert the value to u16 number and check for upper
-		// limit
+		// Convert the value to u16 number and check for upper limit
 		ret = kstrtou16(temp, 16, &values[i]);
 		if (ret < 0) {
 			printk(KERN_ERR "Failed to read value for %s from input\n",
@@ -598,19 +601,19 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 	ret = amg88xx_set_int_upper_limit(device, values[0]);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to set the interrupt upper limit\n");
-		return ret;
+		goto exit;
 	}
 
 	amg88xx_set_int_lower_limit(device, values[1]);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to set the interrupt lower limit\n");
-		return ret;
+		goto exit;
 	}
 
 	amg88xx_set_int_hysteresis(device, values[2]);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to set the interrupt hysteresis\n");
-		return ret;
+		goto exit;
 	}
 
 	ret = count;
