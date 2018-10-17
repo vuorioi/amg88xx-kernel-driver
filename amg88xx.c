@@ -604,13 +604,13 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 		goto exit;
 	}
 
-	amg88xx_set_int_lower_limit(device, values[1]);
+	ret = amg88xx_set_int_lower_limit(device, values[1]);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to set the interrupt lower limit\n");
 		goto exit;
 	}
 
-	amg88xx_set_int_hysteresis(device, values[2]);
+	ret = amg88xx_set_int_hysteresis(device, values[2]);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to set the interrupt hysteresis\n");
 		goto exit;
