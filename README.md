@@ -7,7 +7,7 @@ This driver exposes the i2c registers to userspace via sysfs. Some extra feature
 also exposed, please take a look at the [sysfs interface](#sysfs-interface) chapter for more info.
 
 ## TODO
-- [ ] add support for the device interrupt
+- [X] add support for the device interrupt
 - [ ] complete the sysfs interface
 - [ ] finish the device tree overlay
 
@@ -57,7 +57,7 @@ This driver exposes the following sysfs files:
  * `device_mode` i2c register: _PCTL_
    * reading this file returns the device mode in hex encoding
    * writing a correct hex encoded value to this file sets the device mode
- * `interrupt` i2c register: _INTC_ bit 0
+ * `interrupt_state` i2c register: _INTC_ bit 0
    * reading this file returns the value of interrupt enabled bit:
      * `enabled` interrupt line is in use
      * `disabled` interrupt line is not in use
@@ -71,6 +71,9 @@ This driver exposes the following sysfs files:
    * reading this file returns the interrupt upper and lower limits and the
      hysteresis in the following format: `upper,lower,hysteresis`
    * writing this file sets the interrupt limits and hysteresis. All three values must be writen
+ * `interrupt` this file maps the interrupt line to userspace:
+   * `active` there is an interrupt condition
+   * `not_active` there is no interrupt condition
      at the same time
  * `thermistor` i2c registers: _TTHL_ and _TTHH_.
    * reading this file returns the thermistor output in hex encoding
