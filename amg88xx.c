@@ -28,6 +28,10 @@
 
 #define DRIVER_NAME "amg88xx"
 
+// Since we're dealing with 12-bit numbers the sign-bit needs to be extended.
+#define CONVERT_TO_12BIT(dst, src) \
+	dst = src & 0x800 ? (src | (0xf << 12)) : src
+
 /* i2c register addresses */
 #define DEVICE_MODE_REG		 0x00
 #define RESET_REG		 0x01 //TODO
@@ -69,7 +73,7 @@ static inline int amg88xx_read8(struct i2c_client *client, u8 reg_addr)
 static int amg88xx_read16(struct i2c_client *client, u8 regl, u8 regh)
 {
 	int ret;
-	int val;
+	u16 val;
 
 	// First get the high bits and then the low bits
 	ret = amg88xx_read8(client, regh);
@@ -78,11 +82,15 @@ static int amg88xx_read16(struct i2c_client *client, u8 regl, u8 regh)
 	else
 		val = ret << 8;
 
+	printk(KERN_INFO "high byte %x\n", ret);
+
 	ret = amg88xx_read8(client, regl);
 	if (ret < 0)
 		return ret;
 	else
 		val |= ret;
+
+	printk(KERN_INFO "low byte %x\n", ret);
 
 	return val;
 }
@@ -126,11 +134,11 @@ enum amg88xx_interrupt_state {
 /* Structure for holding device related data */
 struct amg88xx {
 	struct i2c_client *client;
-	struct completion;
+	struct completion irq_bottom_handled;
 	unsigned irq : 1;
 };
 
-/* Interrupt top and bottom-half */
+/* Handler for the threaded irq */
 static irqreturn_t irq_handler(int irq, void *dev)
 {
 	struct amg88xx *device;
@@ -138,9 +146,10 @@ static irqreturn_t irq_handler(int irq, void *dev)
 	device = (struct amg88xx *)dev;
 
 	device->irq = 1;
+	//TODO signal the userspace via sysfs
 
 	// Sleep until the the irq is actually handled by the userspace
-	wait_for_completion(&device->irq_bottom_handled);
+	wait_for_completion_interruptible(&device->irq_bottom_handled);
 
 	return IRQ_HANDLED;
 }
@@ -227,11 +236,11 @@ static int amg88xx_get_int_upper_limit(struct amg88xx *dev, s16 *limit)
 	ret = amg88xx_read16(dev->client, 
 			     UPPER_INTERRUPT_LOW_REG,
 			     UPPER_INTERRUPT_HIGH_REG);
-	if (ret < 0) {
+	if (ret < 0)
 		return ret;
-	} else {
-		*limit = (s16)ret;
-	}
+	else
+		CONVERT_TO_12BIT(*limit, ret);
+		//*limit = (s16)ret;
 
 	return 0;
 }
@@ -243,11 +252,11 @@ static int amg88xx_get_int_lower_limit(struct amg88xx *dev, s16 *limit)
 	ret = amg88xx_read16(dev->client,
 			     LOWER_INTERRUPT_LOW_REG,
 			     LOWER_INTERRUPT_HIGH_REG);
-	if (ret < 0) {
+	if (ret < 0)
 		return ret;
-	} else {
-		*limit = (s16)ret;
-	}
+	else
+		CONVERT_TO_12BIT(*limit, ret);
+		//*limit = (s16)ret;
 
 	return 0;
 }
@@ -259,11 +268,11 @@ static int amg88xx_get_int_hysteresis(struct amg88xx *dev, s16 *hysteresis)
 	ret = amg88xx_read16(dev->client,
 			     INTERRUPT_HYST_LOW_REG,
 			     INTERRUPT_HYST_HIGH_REG);
-	if (ret < 0) {
+	if (ret < 0)
 		return ret;
-	} else {
-		*hysteresis = (s16)ret;
-	}
+	else
+		CONVERT_TO_12BIT(*hysteresis, ret);
+		//*hysteresis = (s16)ret;
 
 	return 0;
 }
@@ -292,20 +301,20 @@ static inline int amg88xx_set_int_hysteresis(struct amg88xx *dev, s16 hysteresis
 			       (u16)hysteresis);
 }
 
-static int amg88xx_read_thermistor(struct amg88xx *dev, int *result)
+static int amg88xx_read_thermistor(struct amg88xx *dev, s16 *result)
 {
 	int ret;
 
 	ret = amg88xx_read16(dev->client, THERM_LOW_REG, THERM_HIGH_REG);
 	if (ret < 0) 
 		return ret;
-	else
-		*result = ret;
+
+	CONVERT_TO_12BIT(*result, ret);
 
 	return 0;
 }
 
-static int amg88xx_read_sensor(struct amg88xx *dev, int *res_array)
+static int amg88xx_read_sensor(struct amg88xx *dev, s16 *res_array)
 {
 	int index;
 	int ret;
@@ -317,7 +326,8 @@ static int amg88xx_read_sensor(struct amg88xx *dev, int *res_array)
 		if (ret < 0)
 			return ret;
 
-		res_array[index] = ret;
+		CONVERT_TO_12BIT(res_array[index], ret);
+
 		reg_addr += 2;
 	}
 
@@ -333,7 +343,7 @@ static ssize_t show_sensor(struct device *dev, struct device_attribute *attr,
 	int row;
 	int col;
 	int nwrite;
-	int sensor_array[64];
+	s16 sensor_array[64];
 	unsigned index = 0;
 
 	device = dev_get_drvdata(dev);
@@ -352,7 +362,7 @@ static ssize_t show_sensor(struct device *dev, struct device_attribute *attr,
 			 */
 			nwrite = scnprintf(&buf[index],
 					   PAGE_SIZE - (index - 1),
-					   col < 7 ? "%x, " : "%x\n",
+					   col < 7 ? "%d, " : "%d\n",
 					   sensor_array[row*8 + col]);
 			index += nwrite + 1;
 		}
@@ -367,7 +377,7 @@ static ssize_t show_thermistor(struct device *dev, struct device_attribute *attr
 {
 	struct amg88xx *device;
 	int ret;
-	int thermistor_value;
+	s16 thermistor_value;
 
 	device = dev_get_drvdata(dev);
 
@@ -377,7 +387,7 @@ static ssize_t show_thermistor(struct device *dev, struct device_attribute *attr
 		return ret;
 	}
 
-	return scnprintf(buf, PAGE_SIZE, "%x\n", thermistor_value);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", thermistor_value);
 }
 static DEVICE_ATTR(thermistor, S_IRUGO, show_thermistor, NULL);
 
@@ -396,6 +406,7 @@ static ssize_t show_device_mode(struct device *dev, struct device_attribute *att
 		return ret;
 	}
 
+	//FIXME values should be text
 	return scnprintf(buf, PAGE_SIZE, "%x\n", device_mode);
 }
 
@@ -408,6 +419,7 @@ static ssize_t store_device_mode(struct device *dev, struct device_attribute *at
 
 	device = dev_get_drvdata(dev);
 
+	//FIXME values should be text
 	ret = kstrtou8(buf, 16, &mode);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to read value from input\n");
@@ -564,7 +576,7 @@ static ssize_t show_interrupt_levels(struct device *dev, struct device_attribute
 	if (ret < 0)
 		return ret;
 	
-	return scnprintf(buf, PAGE_SIZE, "%x,%x,%x\n", upper, lower, hysteresis);
+	return scnprintf(buf, PAGE_SIZE, "%d,%d,%d\n", upper, lower, hysteresis);
 }
 
 static ssize_t store_interrupt_levels(struct device *dev, struct device_attribute *attr,
@@ -572,7 +584,7 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 {
 	struct amg88xx *device;
 	char *temp;
-	u16 values[3];
+	s16 values[3];
 	int ret;
 	int i;
 	int index = 0;
@@ -599,14 +611,14 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 		temp[strl] = '\0';
 
 		// Convert the value to u16 number and check for upper limit
-		ret = kstrtou16(temp, 16, &values[i]);
+		ret = kstrtos16(temp, 10, &values[i]);
 		if (ret < 0) {
 			printk(KERN_ERR "Failed to read value for %s from input\n",
 			       i == 0 ? "upper limit" : (i == 1 ? "lower limit" : "hysteresis"));
 			goto exit;
 		}
 
-		if (values[i] > 0x7ff) {
+		if (values[i] < -2048|| values[i] > 2047) {
 			printk(KERN_ERR "Illegal input value for %s\n",
 			       i == 0 ? "upper limit" : (i == 1 ? "lower limit" : "hysteresis"));
 			ret = -EINVAL;
@@ -650,6 +662,7 @@ static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
 			      char *buf)
 {
 	struct amg88xx *device;
+	int ret;
 
 	device = dev_get_drvdata(dev);
 
@@ -691,7 +704,7 @@ static int amg88xx_probe_new(struct i2c_client *client)
 					client->irq,
 					NULL,
 					irq_handler,
-					IRQF_ONESHOT | IRQF_TRIGGER_FALLING,
+					IRQF_SHARED | IRQF_ONESHOT | IRQF_TRIGGER_LOW,
 					client->name,
 					device);
 	if (ret < 0) {
@@ -720,6 +733,8 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	device_create_file(&client->dev, &dev_attr_interrupt_levels);
 	device_create_file(&client->dev, &dev_attr_interrupt);
 
+	printk(KERN_INFO "driver probed succesfully\n");
+
 	return 0;
 }
 
@@ -742,6 +757,8 @@ static int amg88xx_remove(struct i2c_client *client)
 		printk(KERN_ERR "Failed to put the device to sleep\n");
 		return ret;
 	}
+
+	printk(KERN_INFO "driver remover successfully\n");
 
 	return 0;
 }
@@ -772,12 +789,16 @@ static struct i2c_driver amg88xx_driver = {
 
 static int __init amg88xx_module_init(void)
 {
+	printk(KERN_INFO "module loaded\n");
+
 	return i2c_add_driver(&amg88xx_driver);
 }
 module_init(amg88xx_module_init);
 
 static void __exit amg88xx_module_exit(void)
 {
+	printk(KERN_INFO "module unloaded\n");
+
 	i2c_del_driver(&amg88xx_driver);
 }
 module_exit(amg88xx_module_exit);
