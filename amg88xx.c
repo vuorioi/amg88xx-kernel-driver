@@ -82,15 +82,11 @@ static int amg88xx_read16(struct i2c_client *client, u8 regl, u8 regh)
 	else
 		val = ret << 8;
 
-	printk(KERN_INFO "high byte %x\n", ret);
-
 	ret = amg88xx_read8(client, regl);
 	if (ret < 0)
 		return ret;
 	else
 		val |= ret;
-
-	printk(KERN_INFO "low byte %x\n", ret);
 
 	return val;
 }
@@ -114,6 +110,12 @@ enum amg88xx_device_mode {
 	SLEEP_MODE = 0x10,
 	STANDBY60_MODE = 0x20,
 	STANDBY10_MODE = 0x21 };
+
+static const char *mode_strs[4] = {
+	"normal",
+	"sleep",
+	"standby_60",
+	"standby_10" };
 
 enum amg88xx_reset_mode {
 	PARTIAL_RST = 0x30,
@@ -240,7 +242,6 @@ static int amg88xx_get_int_upper_limit(struct amg88xx *dev, s16 *limit)
 		return ret;
 	else
 		CONVERT_TO_12BIT(*limit, ret);
-		//*limit = (s16)ret;
 
 	return 0;
 }
@@ -256,7 +257,6 @@ static int amg88xx_get_int_lower_limit(struct amg88xx *dev, s16 *limit)
 		return ret;
 	else
 		CONVERT_TO_12BIT(*limit, ret);
-		//*limit = (s16)ret;
 
 	return 0;
 }
@@ -272,7 +272,6 @@ static int amg88xx_get_int_hysteresis(struct amg88xx *dev, s16 *hysteresis)
 		return ret;
 	else
 		CONVERT_TO_12BIT(*hysteresis, ret);
-		//*hysteresis = (s16)ret;
 
 	return 0;
 }
@@ -396,18 +395,36 @@ static ssize_t show_device_mode(struct device *dev, struct device_attribute *att
 {
 	struct amg88xx *device;
 	int ret;
-	int device_mode;
+	int mode;
+	const char* str;
 
 	device = dev_get_drvdata(dev);
 
-	ret = amg88xx_get_dev_mode(device, &device_mode);
+	ret = amg88xx_get_dev_mode(device, &mode);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to read device mode\n");
 		return ret;
 	}
 
-	//FIXME values should be text
-	return scnprintf(buf, PAGE_SIZE, "%x\n", device_mode);
+	switch (mode) {
+	case NORMAL_MODE:
+		str = mode_strs[0];
+		break;
+	case SLEEP_MODE:
+		str = mode_strs[1];
+		break;
+	case STANDBY60_MODE:
+		str = mode_strs[2];
+		break;
+	case STANDBY10_MODE:
+		str = mode_strs[3];
+		break;
+	default:
+		printk(KERN_ERR "Unkown mode from hw\n");
+		return -EREMOTEIO;
+	}
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n", str);
 }
 
 static ssize_t store_device_mode(struct device *dev, struct device_attribute *attr,
@@ -415,21 +432,19 @@ static ssize_t store_device_mode(struct device *dev, struct device_attribute *at
 {
 	struct amg88xx *device;
 	int ret;
-	u8 mode;
+	enum amg88xx_device_mode mode;
 
 	device = dev_get_drvdata(dev);
 
-	//FIXME values should be text
-	ret = kstrtou8(buf, 16, &mode);
-	if (ret < 0) {
-		printk(KERN_ERR "Failed to read value from input\n");
-		return ret;
-	}
-
-	if (!(mode == NORMAL_MODE ||
-	      mode == SLEEP_MODE ||
-	      mode == STANDBY60_MODE ||
-	      mode == STANDBY10_MODE)) {
+	if (strncmp("normal\n", buf, count) == 0) {
+		mode = NORMAL_MODE;
+	} else if (strncmp("sleep\n", buf, count) == 0) {
+		mode = SLEEP_MODE;
+	} else if (strncmp("standby_60\n", buf, count) == 0) {
+		mode = STANDBY60_MODE;
+	} else if (strncmp("standby_10\n", buf, count) == 0) {
+		mode = STANDBY10_MODE;
+	} else {
 		printk(KERN_ERR "Input is not a supported mode\n");
 		return -EINVAL;
 	}
