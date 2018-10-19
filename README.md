@@ -7,9 +7,13 @@ This driver exposes the i2c registers to userspace via sysfs. Some extra feature
 also exposed, please take a look at the [sysfs interface](#sysfs-interface) chapter for more info.
 
 ## TODO
-- [X] add support for the device interrupt
+- [ ] add support for the device interrupt
+  - [X] sysfs entry for the interrupt
+  - [X] interrupt handling in kernel
+  - [ ] notifying userspace through the sysfs
 - [ ] complete the sysfs interface
 - [ ] finish the device tree overlay
+- [ ] add support for an "easier" interface (/class/input maybe)
 
 ## How-to use
 First clone this reposity:
@@ -46,17 +50,21 @@ Before the device can be used it must be set to _normal_ or one of the _stand-by
 ```sudo sh -c "echo <mode> > device_mode"```
 
 `mode` can be any on of the following:
- * `0x0` Normal mode
- * `0x10` Sleep mode
- * `0x20` Stand-by mode (60 s)
- * `0x21` Stand-by mode (10 s)
+ * `normal` Normal operation, refresh rate chosen by the _FPSC_ register
+ * `sleep` Sleep mode, all register read as 0x0
+ * `standby_60` Stand-by mode with wake-up every 60 s to refresh sensor and irq line
+ * `standby_10` Stand-by mode with wake-up every 10 s to refresh sensor and irq line
 
 ## sysfs interface
 **The sysfs interface is not fully implemented!**
 This driver exposes the following sysfs files:
  * `device_mode` i2c register: _PCTL_
-   * reading this file returns the device mode in hex encoding
-   * writing a correct hex encoded value to this file sets the device mode
+   * reading this file returns the device mode:
+     * `normal` Normal operation, refresh rate chosen by the _FPSC_ register
+     * `sleep` Sleep mode, all register read as 0x0
+     * `standby_60` Stand-by mode with wake-up every 60 s to refresh sensor and irq line
+     * `standby_10` Stand-by mode with wake-up every 10 s to refresh sensor and irq line
+   * writing a correct device mode to this file sets the device mode
  * `interrupt_state` i2c register: _INTC_ bit 0
    * reading this file returns the value of interrupt enabled bit:
      * `enabled` interrupt line is in use
@@ -69,13 +77,12 @@ This driver exposes the following sysfs files:
    * writing this file changes the interrupt mode bit
  * `interrupt_levels` i2c registers: _INTHL_ to _IHYSH_
    * reading this file returns the interrupt upper and lower limits and the
-     hysteresis in the following format: `upper,lower,hysteresis`
+     hysteresis in the following format: `upper,lower,hysteresis`. All values are signed integer
    * writing this file sets the interrupt limits and hysteresis. All three values must be writen
  * `interrupt` this file maps the interrupt line to userspace:
-   * `active` there is an interrupt condition
-   * `not_active` there is no interrupt condition
-     at the same time
+   * `active` int line from the hw is low, i.e. there is an active interrupt
+   * `not_active` int line from the hw is high, i.e. there isn't an active interrupt
  * `thermistor` i2c registers: _TTHL_ and _TTHH_.
-   * reading this file returns the thermistor output in hex encoding
+   * reading this file returns the thermistor output in signed integer format
  * `sensor` i2c registers: _T01L_ to _0xFF_
-   * reading this file returns the 8x8 array containing the sensor values in hex encoding
+   * reading this file returns the 8x8 array containing the sensor values in signed integer format
