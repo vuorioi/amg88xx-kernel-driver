@@ -19,6 +19,7 @@
  */
 
 #include <linux/device.h>
+#include <linux/gpio/consumer.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
@@ -136,8 +137,7 @@ enum amg88xx_interrupt_state {
 /* Structure for holding device related data */
 struct amg88xx {
 	struct i2c_client *client;
-	struct completion irq_bottom_handled;
-	unsigned irq : 1;
+	struct gpio_desc *int_gpio;
 };
 
 /* Handler for the threaded irq */
@@ -145,13 +145,11 @@ static irqreturn_t irq_handler(int irq, void *dev)
 {
 	struct amg88xx *device;
 
-	device = (struct amg88xx *)dev;
+	device = dev;
 
-	device->irq = 1;
-	//TODO signal the userspace via sysfs
-
-	// Sleep until the the irq is actually handled by the userspace
-	wait_for_completion_interruptible(&device->irq_bottom_handled);
+	// Signal the userspace by notifying pollers on the interrupt file
+	//sysfs_notify(&device->client->dev->kobj, NULL, "interrupt"); FIXME implement this and add tests
+	printk(KERN_INFO "placeholder: notifying userspace\n");
 
 	return IRQ_HANDLED;
 }
@@ -681,22 +679,13 @@ static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
 
 	device = dev_get_drvdata(dev);
 
-	// Clear pending irqs from hw
-	if (device->irq) {
-		ret = amg88xx_write8(device->client, STATUS_FLAG_CLR_REG, 0x1);
-		if (ret < 0) {
-			printk(KERN_ERR "Failed to clear the interrupt flag\n");
-			return ret;
-		}
+	ret = gpiod_get_value(device->int_gpio);
+	if (ret < 0) {
+		printk(KERN_ERR "Failed to read interrupt gpio value\n");
+		return ret;
 	}
-
-	// Signal the irq thread
-	complete(&device->irq_bottom_handled);
-
-	ret = scnprintf(buf, PAGE_SIZE, "%s\n", device->irq ? "active" : "not_active");
-	device->irq = 0;
-
-	return ret;
+	
+	return scnprintf(buf, PAGE_SIZE, "%s\n", !ret ? "active" : "not_active");
 }
 static DEVICE_ATTR(interrupt, S_IRUGO, show_interrupt, NULL);
 
@@ -715,20 +704,23 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	else
 		device->client = client;
 
+	device->int_gpio = gpiod_get(&client->dev, "interrupt", GPIOD_IN);
+	if (IS_ERR(device->int_gpio)) {
+		printk(KERN_ERR "Failed to get a gpio line for interrupt\n");
+		return PTR_ERR(device->int_gpio);
+	}
+
 	ret = devm_request_threaded_irq(&client->dev,
 					client->irq,
 					NULL,
 					irq_handler,
-					IRQF_SHARED | IRQF_ONESHOT | IRQF_TRIGGER_LOW,
+					IRQF_SHARED | IRQF_ONESHOT | IRQF_TRIGGER_FALLING,
 					client->name,
 					device);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to request a threaded irq\n");
 		return ret;
 	}
-
-	// A completion is used to signal that userspace has handled the irq
-	init_completion(&device->irq_bottom_handled);
 
 	dev_set_drvdata(&client->dev, device);
 
@@ -748,8 +740,6 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	device_create_file(&client->dev, &dev_attr_interrupt_levels);
 	device_create_file(&client->dev, &dev_attr_interrupt);
 
-	printk(KERN_INFO "driver probed succesfully\n");
-
 	return 0;
 }
 
@@ -767,13 +757,13 @@ static int amg88xx_remove(struct i2c_client *client)
 	device_remove_file(&client->dev, &dev_attr_interrupt_levels);
 	device_remove_file(&client->dev, &dev_attr_interrupt);
 
+	gpiod_put(device->int_gpio);
+
 	ret = amg88xx_set_dev_mode(device, SLEEP_MODE);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to put the device to sleep\n");
 		return ret;
 	}
-
-	printk(KERN_INFO "driver remover successfully\n");
 
 	return 0;
 }
@@ -804,16 +794,12 @@ static struct i2c_driver amg88xx_driver = {
 
 static int __init amg88xx_module_init(void)
 {
-	printk(KERN_INFO "module loaded\n");
-
 	return i2c_add_driver(&amg88xx_driver);
 }
 module_init(amg88xx_module_init);
 
 static void __exit amg88xx_module_exit(void)
 {
-	printk(KERN_INFO "module unloaded\n");
-
 	i2c_del_driver(&amg88xx_driver);
 }
 module_exit(amg88xx_module_exit);
