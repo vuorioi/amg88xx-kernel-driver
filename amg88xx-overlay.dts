@@ -23,6 +23,7 @@
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
+
 			status = "okay";
 
 			amg88xx: amg88xx_node {
@@ -35,18 +36,24 @@
 				interrupt-parent = <&gpio>;
 				 // Pin: GPIO04, high-to-low edge
 				interrupts = <4 2>;
+				
+				// GPIO-pin for reading the value of the
+				// interrupt line
+				interrupt-gpio = <&gpio 4 0>;
 			};
 		};
 	};
 	
 	// Load time parameters
 	__overrides__ {
-		// i2c slave adress (default: 0x68)
+		// I2C slave adress (default: 0x68)
 		slave-address = <&amg88xx>,"reg.0";
 		
 		// interrupt pin (default: GPIO04)
 		interrupt = <&amg88xx>,"brcm,pins:0",
-			<&amg88xx>,"interrupts:0";
+			<&amg88xx>,"interrupts:0",
+			<&amg88xx>,"interrupt-gpio:4";
+
 	};
 };
 
