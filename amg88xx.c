@@ -29,8 +29,11 @@
 
 #define DRIVER_NAME "amg88xx"
 
-// Since we're dealing with 12-bit numbers the sign-bit needs to be extended.
-#define CONVERT_TO_12BIT(dst, src) \
+/*
+ * Since we're dealing with 12-bit numbers the sign-bit needs to be extended
+ * for the number to be represented correctly
+ */
+#define convert_to_s16(dst, src) \
 	dst = src & 0x800 ? (src | (0xf << 12)) : src
 
 /* i2c register addresses */
@@ -60,7 +63,9 @@
 #define SENSOR_FIRST_REG	 0x80 // Pixel 1 low bits register
 #define SENSOR_LAST_REG		 0xFF // Pixel 64 high bits register
 
-/* Low level access helper functions */
+/* 
+ * Low level access helper functions
+ */
 static inline int amg88xx_write8(struct i2c_client *client, u8 reg_addr, u8 value)
 {
 	return i2c_smbus_write_byte_data(client, reg_addr, value);
@@ -102,10 +107,11 @@ static int amg88xx_write16(struct i2c_client *client, u8 regl, u8 regh, u16 valu
 		return ret;
 
 	return amg88xx_write8(client, regh, (u8)(value >> 8));
-	
 }
 
-/* Device configuration options that are mapped to register values */
+/* 
+ * Device configuration options that are mapped to register values
+ */
 enum amg88xx_device_mode {
 	NORMAL_MODE = 0x0,
 	SLEEP_MODE = 0x10,
@@ -134,27 +140,32 @@ enum amg88xx_interrupt_state {
 	INT_DISABLED = 0,
 	INT_ENABLED = 1 };
 
-/* Structure for holding device related data */
+/*
+ * Structure for holding device related data
+ */
 struct amg88xx {
 	struct i2c_client *client;
 	struct gpio_desc *int_gpio;
 };
 
-/* Handler for the threaded irq */
+/*
+ * Handler for the threaded irq
+ */
 static irqreturn_t irq_handler(int irq, void *dev)
 {
 	struct amg88xx *device;
 
 	device = dev;
 
-	// Signal the userspace by notifying pollers on the interrupt file
-	//sysfs_notify(&device->client->dev->kobj, NULL, "interrupt"); FIXME implement this and add tests
-	printk(KERN_INFO "placeholder: notifying userspace\n");
+	// Signal the userspace by notifying pollers on the 'interrupt' file
+	sysfs_notify(&device->client->dev.kobj, NULL, "interrupt");
 
 	return IRQ_HANDLED;
 }
 
-/* Helper functions for device access */
+/*
+ * Helper functions for device access
+ */
 static inline int amg88xx_set_dev_mode(struct amg88xx *dev, enum amg88xx_device_mode mode)
 {
 	return amg88xx_write8(dev->client, DEVICE_MODE_REG, mode);
@@ -239,7 +250,7 @@ static int amg88xx_get_int_upper_limit(struct amg88xx *dev, s16 *limit)
 	if (ret < 0)
 		return ret;
 	else
-		CONVERT_TO_12BIT(*limit, ret);
+		convert_to_s16(*limit, ret);
 
 	return 0;
 }
@@ -254,7 +265,7 @@ static int amg88xx_get_int_lower_limit(struct amg88xx *dev, s16 *limit)
 	if (ret < 0)
 		return ret;
 	else
-		CONVERT_TO_12BIT(*limit, ret);
+		convert_to_s16(*limit, ret);
 
 	return 0;
 }
@@ -269,7 +280,7 @@ static int amg88xx_get_int_hysteresis(struct amg88xx *dev, s16 *hysteresis)
 	if (ret < 0)
 		return ret;
 	else
-		CONVERT_TO_12BIT(*hysteresis, ret);
+		convert_to_s16(*hysteresis, ret);
 
 	return 0;
 }
@@ -306,7 +317,7 @@ static int amg88xx_read_thermistor(struct amg88xx *dev, s16 *result)
 	if (ret < 0) 
 		return ret;
 
-	CONVERT_TO_12BIT(*result, ret);
+	convert_to_s16(*result, ret);
 
 	return 0;
 }
@@ -323,7 +334,7 @@ static int amg88xx_read_sensor(struct amg88xx *dev, s16 *res_array)
 		if (ret < 0)
 			return ret;
 
-		CONVERT_TO_12BIT(res_array[index], ret);
+		convert_to_s16(res_array[index], ret);
 
 		reg_addr += 2;
 	}
@@ -331,7 +342,9 @@ static int amg88xx_read_sensor(struct amg88xx *dev, s16 *res_array)
 	return 0;
 }
 
-/* sysfs entries and the functions to implement them */
+/* 
+ * sysfs entries and the functions to implement them
+ */
 static ssize_t show_sensor(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
@@ -347,7 +360,7 @@ static ssize_t show_sensor(struct device *dev, struct device_attribute *attr,
 
 	ret = amg88xx_read_sensor(device, sensor_array);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to read the sensor\n");
+		dev_err(dev, "Failed to read the sensor\n");
 		return ret;
 	}
 
@@ -355,7 +368,7 @@ static ssize_t show_sensor(struct device *dev, struct device_attribute *attr,
 		for (col = 0; col < 8; col++) {
 			/* 
 			 * Write all the values on a row. Each value is sepparated by a comma
-			 *  and there is newline character after the last value
+			 * and there is newline character after the last value
 			 */
 			nwrite = scnprintf(&buf[index],
 					   PAGE_SIZE - (index - 1),
@@ -380,7 +393,7 @@ static ssize_t show_thermistor(struct device *dev, struct device_attribute *attr
 
 	ret = amg88xx_read_thermistor(device, &thermistor_value);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to read thermistor value\n");
+		dev_err(dev, "Failed to read thermistor value\n");
 		return ret;
 	}
 
@@ -400,7 +413,7 @@ static ssize_t show_device_mode(struct device *dev, struct device_attribute *att
 
 	ret = amg88xx_get_dev_mode(device, &mode);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to read device mode\n");
+		dev_err(dev, "Failed to read device mode\n");
 		return ret;
 	}
 
@@ -418,7 +431,7 @@ static ssize_t show_device_mode(struct device *dev, struct device_attribute *att
 		str = mode_strs[3];
 		break;
 	default:
-		printk(KERN_ERR "Unkown mode from hw\n");
+		dev_err(dev, "Unkown mode from hw\n");
 		return -EREMOTEIO;
 	}
 
@@ -443,13 +456,13 @@ static ssize_t store_device_mode(struct device *dev, struct device_attribute *at
 	} else if (strncmp("standby_10\n", buf, count) == 0) {
 		mode = STANDBY10_MODE;
 	} else {
-		printk(KERN_ERR "Input is not a supported mode\n");
+		dev_err(dev, "Input is not a supported mode\n");
 		return -EINVAL;
 	}
 
 	ret = amg88xx_set_dev_mode(device, mode);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to set device mode\n");
+		dev_err(dev, "Failed to set device mode\n");
 		return ret;
 	}
 
@@ -472,7 +485,7 @@ static ssize_t show_interrupt_mode(struct device *dev, struct device_attribute *
 
 	ret = amg88xx_get_int_conf(device, &mode, &enabled);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to read interrupt mode\n");
+		dev_err(dev, "Failed to read interrupt mode\n");
 		return ret;
 	}
 
@@ -496,13 +509,13 @@ static ssize_t store_interrupt_mode(struct device *dev, struct device_attribute 
 	} else if (strncmp("differential\n", buf, count) == 0) {
 		mode = DIFFERENCE_MODE; //FIXME
 	} else {
-		printk(KERN_ERR "Invalid interrupt mode\n");
+		dev_err(dev, "Invalid interrupt mode\n");
 		return -EINVAL;
 	}
 
 	ret = amg88xx_set_int_mode(device, mode);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to set interrupt mode\n");
+		dev_err(dev, "Failed to set interrupt mode\n");
 		return ret;
 	}
 
@@ -525,7 +538,7 @@ static ssize_t show_interrupt_state(struct device *dev, struct device_attribute 
 
 	ret = amg88xx_get_int_conf(device, &mode, &enabled);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to read interrupt mode\n");
+		dev_err(dev, "Failed to read interrupt mode\n");
 		return ret;
 	}
 
@@ -549,13 +562,13 @@ static ssize_t store_interrupt_state(struct device *dev, struct device_attribute
 	} else if (strncmp("disabled\n", buf, count) == 0) {
 		state = INT_DISABLED;
 	} else {
-		printk(KERN_ERR "Invalid interrupt state\n");
+		dev_err(dev, "Invalid interrupt state\n");
 		return -EINVAL;
 	}
 
 	ret = amg88xx_set_int_state(device, state);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to set interrupt state\n");
+		dev_err(dev, "Failed to set interrupt state\n");
 		return ret;
 	}
 
@@ -626,13 +639,13 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 		// Convert the value to u16 number and check for upper limit
 		ret = kstrtos16(temp, 10, &values[i]);
 		if (ret < 0) {
-			printk(KERN_ERR "Failed to read value for %s from input\n",
+			dev_err(dev, "Failed to read value for %s from input\n",
 			       i == 0 ? "upper limit" : (i == 1 ? "lower limit" : "hysteresis"));
 			goto exit;
 		}
 
 		if (values[i] < -2048|| values[i] > 2047) {
-			printk(KERN_ERR "Illegal input value for %s\n",
+			dev_err(dev, "Illegal input value for %s\n",
 			       i == 0 ? "upper limit" : (i == 1 ? "lower limit" : "hysteresis"));
 			ret = -EINVAL;
 			goto exit;
@@ -643,19 +656,19 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 
 	ret = amg88xx_set_int_upper_limit(device, values[0]);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to set the interrupt upper limit\n");
+		dev_err(dev, "Failed to set the interrupt upper limit\n");
 		goto exit;
 	}
 
 	ret = amg88xx_set_int_lower_limit(device, values[1]);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to set the interrupt lower limit\n");
+		dev_err(dev, "Failed to set the interrupt lower limit\n");
 		goto exit;
 	}
 
 	ret = amg88xx_set_int_hysteresis(device, values[2]);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to set the interrupt hysteresis\n");
+		dev_err(dev, "Failed to set the interrupt hysteresis\n");
 		goto exit;
 	}
 
@@ -681,7 +694,7 @@ static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
 
 	ret = gpiod_get_value(device->int_gpio);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to read interrupt gpio value\n");
+		dev_err(dev, "Failed to read interrupt gpio value\n");
 		return ret;
 	}
 	
@@ -706,7 +719,7 @@ static int amg88xx_probe_new(struct i2c_client *client)
 
 	device->int_gpio = gpiod_get(&client->dev, "interrupt", GPIOD_IN);
 	if (IS_ERR(device->int_gpio)) {
-		printk(KERN_ERR "Failed to get a gpio line for interrupt\n");
+		dev_err(&client->dev, "Failed to get a gpio line for interrupt\n");
 		return PTR_ERR(device->int_gpio);
 	}
 
@@ -718,7 +731,7 @@ static int amg88xx_probe_new(struct i2c_client *client)
 					client->name,
 					device);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to request a threaded irq\n");
+		dev_err(&client->dev, "Failed to request a threaded irq\n");
 		return ret;
 	}
 
@@ -726,7 +739,7 @@ static int amg88xx_probe_new(struct i2c_client *client)
 
 	ret = amg88xx_reset(device);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to reset device\n");
+		dev_err(&client->dev, "Failed to reset device\n");
 		return ret;
 	}
 
@@ -761,7 +774,7 @@ static int amg88xx_remove(struct i2c_client *client)
 
 	ret = amg88xx_set_dev_mode(device, SLEEP_MODE);
 	if (ret < 0) {
-		printk(KERN_ERR "Failed to put the device to sleep\n");
+		dev_err(&client->dev, "Failed to put the device to sleep\n");
 		return ret;
 	}
 

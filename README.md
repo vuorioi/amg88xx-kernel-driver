@@ -7,10 +7,10 @@ This driver exposes the i2c registers to userspace via sysfs. Some extra feature
 also exposed, please take a look at the [sysfs interface](#sysfs-interface) chapter for more info.
 
 ## TODO
-- [ ] add support for the device interrupt
+- [X] add support for the device interrupt
   - [X] sysfs entry for the interrupt
   - [X] interrupt handling in kernel
-  - [ ] notifying userspace through the sysfs
+  - [X] notifying userspace through the sysfs
 - [ ] complete the sysfs interface
 - [X] finish the devicetree overlay
 - [ ] add support for an "easier" interface (/class/iio maybe?)
