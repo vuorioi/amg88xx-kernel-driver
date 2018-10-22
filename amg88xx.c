@@ -29,8 +29,11 @@
 
 #define DRIVER_NAME "amg88xx"
 
-// Since we're dealing with 12-bit numbers the sign-bit needs to be extended
-#define CONVERT_TO_12BIT(dst, src) \
+/*
+ * Since we're dealing with 12-bit numbers the sign-bit needs to be extended
+ * for the number to be represented correctly
+ */
+#define convert_to_s16(dst, src) \
 	dst = src & 0x800 ? (src | (0xf << 12)) : src
 
 /* i2c register addresses */
@@ -154,9 +157,8 @@ static irqreturn_t irq_handler(int irq, void *dev)
 
 	device = dev;
 
-	// Signal the userspace by notifying pollers on the interrupt file
-	sysfs_notify(&device->client->dev->kobj, NULL, "interrupt");
-	//printk(KERN_INFO "placeholder: notifying userspace\n");
+	// Signal the userspace by notifying pollers on the 'interrupt' file
+	sysfs_notify(&device->client->dev.kobj, NULL, "interrupt");
 
 	return IRQ_HANDLED;
 }
@@ -248,7 +250,7 @@ static int amg88xx_get_int_upper_limit(struct amg88xx *dev, s16 *limit)
 	if (ret < 0)
 		return ret;
 	else
-		CONVERT_TO_12BIT(*limit, ret);
+		convert_to_s16(*limit, ret);
 
 	return 0;
 }
@@ -263,7 +265,7 @@ static int amg88xx_get_int_lower_limit(struct amg88xx *dev, s16 *limit)
 	if (ret < 0)
 		return ret;
 	else
-		CONVERT_TO_12BIT(*limit, ret);
+		convert_to_s16(*limit, ret);
 
 	return 0;
 }
@@ -278,7 +280,7 @@ static int amg88xx_get_int_hysteresis(struct amg88xx *dev, s16 *hysteresis)
 	if (ret < 0)
 		return ret;
 	else
-		CONVERT_TO_12BIT(*hysteresis, ret);
+		convert_to_s16(*hysteresis, ret);
 
 	return 0;
 }
@@ -315,7 +317,7 @@ static int amg88xx_read_thermistor(struct amg88xx *dev, s16 *result)
 	if (ret < 0) 
 		return ret;
 
-	CONVERT_TO_12BIT(*result, ret);
+	convert_to_s16(*result, ret);
 
 	return 0;
 }
@@ -332,7 +334,7 @@ static int amg88xx_read_sensor(struct amg88xx *dev, s16 *res_array)
 		if (ret < 0)
 			return ret;
 
-		CONVERT_TO_12BIT(res_array[index], ret);
+		convert_to_s16(res_array[index], ret);
 
 		reg_addr += 2;
 	}
