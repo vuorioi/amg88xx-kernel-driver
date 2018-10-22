@@ -1,4 +1,4 @@
-/* This is a simple device tree overlay for RPi */
+// This is a simple device tree overlay example for RPi
 
 /dts-v1/;
 /plugin/;
@@ -9,6 +9,9 @@
 	fragment@0 {
 		target = <&gpio>;
 		__overlay__ {
+			// This fragment specifies the GPIO pins used
+			// by the device. There is only one interrupt
+			// line in use and it should be pulled high.
 			amg88xx_pins: amg88xx_pins {
 				brcm,pins = <4>; // Pin: GPIO04
 				brcm,function = <0>; // Direction: in
@@ -26,30 +29,36 @@
 
 			status = "okay";
 
-			amg88xx: amg88xx_node {
+			amg88xx: amg88xx {
 				compatible = "panasonic,amg88xx";
 				reg = <0x68>;
 				
 				pinctrl-names = "default";
 				pinctrl-0 = <&amg88xx_pins>;
 				
+				// GPIO controller is our interrupt source
 				interrupt-parent = <&gpio>;
-				 // Pin: GPIO04, high-to-low edge
+				// Pin: GPIO04, high-to-low edge
 				interrupts = <4 2>;
 				
 				// GPIO-pin for reading the value of the
-				// interrupt line
+				// interrupt line.
 				interrupt-gpio = <&gpio 4 0>;
 			};
 		};
 	};
 	
-	// Load time parameters
+	// Load time parameters that can be used to overwrite the
+	// default values. Usage:
+	// # dtoverlay amg88xx.dtbo <param>=<value>
 	__overrides__ {
-		// I2C slave adress (default: 0x68)
+		// I2C slave adress. This defaults to 0x68 (i.e.
+		// amg88xx ad_select pin is pulled low) but can also
+		// be set to 0x69 (ad_select pulled high).
 		slave-address = <&amg88xx>,"reg.0";
 		
-		// interrupt pin (default: GPIO04)
+		// Interrupt pin (default: GPIO04). Note that we need
+		// to set the value to three places.
 		interrupt = <&amg88xx>,"brcm,pins:0",
 			<&amg88xx>,"interrupts:0",
 			<&amg88xx>,"interrupt-gpio:4";
