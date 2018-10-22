@@ -24,6 +24,8 @@
 		target = <&i2c1>;
 		
 		__overlay__ {
+			// Reg only contains a single value for the device
+			// address and no size
 			#address-cells = <1>;
 			#size-cells = <0>;
 
@@ -33,10 +35,13 @@
 				compatible = "panasonic,amg88xx";
 				reg = <0x68>;
 				
+				// Reference to the pinctrl node for this
+				// device
 				pinctrl-names = "default";
 				pinctrl-0 = <&amg88xx_pins>;
 				
-				// GPIO controller is our interrupt source
+				// GPIO controller is also our interrupt
+				//controller
 				interrupt-parent = <&gpio>;
 				// Pin: GPIO04, high-to-low edge
 				interrupts = <4 2>;
@@ -59,7 +64,7 @@
 		
 		// Interrupt pin (default: GPIO04). Note that we need
 		// to set the value to three places.
-		interrupt = <&amg88xx>,"brcm,pins:0",
+		interrupt = <&amg88xx_pins>,"brcm,pins:0",
 			<&amg88xx>,"interrupts:0",
 			<&amg88xx>,"interrupt-gpio:4";
 
