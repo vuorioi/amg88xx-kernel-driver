@@ -13,7 +13,8 @@ also exposed, please take a look at the [sysfs interface](#sysfs-interface) chap
   - [X] notifying userspace through the sysfs
 - [ ] complete the sysfs interface
 - [X] finish the devicetree overlay
-- [ ] add support for an "easier" interface (/class/iio maybe?)
+- [ ] add support for an "easier" interface (_/class/iio_ maybe?)
+- [ ] write an example userspace application
 
 ## How to use
 First clone this reposity:
