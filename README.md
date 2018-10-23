@@ -81,6 +81,13 @@ This driver exposes the following sysfs files:
      * `standby_60` Stand-by mode with wake-up every 60 s to refresh sensor and irq line
      * `standby_10` Stand-by mode with wake-up every 10 s to refresh sensor and irq line
    * writing a correct device mode to this file sets the device mode
+ * `reset` i2c register: _RST_
+   * following values can be writin to this file:
+     * `full` device is reseted to the initial state
+     * `partial` only the status register, interrupt flag and interrupt map is reseted
+ * `framerate` i2c register: _FPSC_
+   * reading this file returns the current framerate or 0 if the device is in sleep mode
+   * writing a valid value (`1` or `10`) to this file sets the framerate
  * `interrupt_state` i2c register: _INTC_ bit 0
    * reading this file returns the value of interrupt enabled bit:
      * `enabled` interrupt line is in use
