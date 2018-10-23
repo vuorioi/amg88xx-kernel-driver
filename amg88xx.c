@@ -38,8 +38,8 @@
 
 /* i2c register addresses */
 #define DEVICE_MODE_REG		 0x00
-#define RESET_REG		 0x01 //TODO
-#define FRAME_RATE_REG		 0x02 //TODO
+#define RESET_REG		 0x01
+#define FRAMERATE_REG		 0x02
 #define INTERRUPT_CTRL_REG	 0x03
 #define STATUS_FLAG_REG		 0x04 //TODO | one sysfs entry
 #define STATUS_FLAG_CLR_REG	 0x05 //TODO |
@@ -184,9 +184,31 @@ static int amg88xx_get_dev_mode(struct amg88xx *dev, int *result)
 	return 0;
 }
 
-static inline int amg88xx_reset(struct amg88xx *dev)
+static inline int amg88xx_reset(struct amg88xx *dev, enum amg88xx_reset_mode mode)
 {
-	return amg88xx_write8(dev->client, RESET_REG, PARTIAL_RST);
+	return amg88xx_write8(dev->client, RESET_REG, mode);
+}
+
+static int amg88xx_get_framerate(struct amg88xx *dev, unsigned *framerate)
+{
+	int ret;
+
+	ret = amg88xx_read8(dev->client, FRAMERATE_REG);
+	if (ret < 0)
+		return ret;
+	else if (ret == FPS10)
+		*framerate = 10;
+	else if (ret == FPS1)
+		*framerate = 1;
+	else
+		*framerate = 0;
+
+	return 0;
+}
+
+static inline int amg88xx_set_framerate(struct amg88xx *dev, enum amg88xx_fps framerate)
+{
+	return amg88xx_write8(dev->client, FRAMERATE_REG, framerate);
 }
 
 static int amg88xx_get_int_conf(struct amg88xx *dev, int *mode, int *enabled)
@@ -733,7 +755,6 @@ static ssize_t show_interrupt_map(struct device *dev, struct device_attribute *a
 
 	device = dev_get_drvdata(dev);
 
-	//TODO read interrupt array
 	ret = amg88xx_read_interrupt_map(device, int_array);
 	if (ret < 0) {
 		dev_err(dev, "Failed to read the interrupt map\n");
@@ -753,6 +774,86 @@ static ssize_t show_interrupt_map(struct device *dev, struct device_attribute *a
 	return index;
 }
 static DEVICE_ATTR(interrupt_map, S_IRUGO, show_interrupt_map, NULL);
+
+static ssize_t store_reset(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct amg88xx *device;
+	enum amg88xx_reset_mode reset_mode;
+	int ret;
+
+	device = dev_get_drvdata(dev);
+
+	if (sysfs_streq("full", buf)) {
+		reset_mode = FULL_RST;
+	} else if (sysfs_streq("partial", buf)) {
+		reset_mode = PARTIAL_RST;
+	} else {
+		dev_err(dev, "Invalid reset mode\n");
+		return -EINVAL;
+	}
+
+	ret = amg88xx_reset(device, reset_mode);
+	if (ret < 0) {
+		dev_err(dev, "Failed to reset device\n");
+		return ret;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(reset, S_IWUSR | S_IWGRP, NULL, store_reset);
+
+static ssize_t show_framerate(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	struct amg88xx *device;
+	int framerate;
+	int ret;
+
+	device = dev_get_drvdata(dev);
+
+	ret = amg88xx_get_framerate(device, &framerate);
+	if (ret < 0) {
+		dev_err(dev, "Failed to read framerate\n");
+		return ret;
+	}
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", framerate);
+}
+
+static ssize_t store_framerate(struct device *dev, struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct amg88xx *device;
+	int fps;
+	int ret;
+
+	device = dev_get_drvdata(dev);
+
+	ret = kstrtoint(buf, 10, &fps);
+	if (ret < 0) {
+		dev_err(dev, "Failed to read framerate from input\n");
+		return ret;
+	}
+
+	if (!(fps == 1 ||
+	      fps == 10)) {
+		dev_err(dev, "Invalid framerate value\n");
+		return -EINVAL;
+	}
+
+	ret = amg88xx_set_framerate(device, fps == 1 ? FPS1 : FPS10);
+	if (ret < 0) {
+		dev_err(dev, "Failed to set framerate\n");
+		return ret;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(framerate,
+		   S_IRUGO | S_IWUSR | S_IWGRP,
+		   show_framerate,
+		   store_framerate);
 
 // TODO all the rest of the sysfs stuff
 // TODO group attributes
@@ -789,7 +890,7 @@ static int amg88xx_probe_new(struct i2c_client *client)
 
 	dev_set_drvdata(&client->dev, device);
 
-	ret = amg88xx_reset(device);
+	ret = amg88xx_reset(device, PARTIAL_RST);
 	if (ret < 0) {
 		dev_err(&client->dev, "Failed to reset device\n");
 		return ret;
@@ -805,6 +906,8 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	device_create_file(&client->dev, &dev_attr_interrupt_levels);
 	device_create_file(&client->dev, &dev_attr_interrupt);
 	device_create_file(&client->dev, &dev_attr_interrupt_map);
+	device_create_file(&client->dev, &dev_attr_reset);
+	device_create_file(&client->dev, &dev_attr_framerate);
 
 	return 0;
 }
@@ -823,6 +926,8 @@ static int amg88xx_remove(struct i2c_client *client)
 	device_remove_file(&client->dev, &dev_attr_interrupt_levels);
 	device_remove_file(&client->dev, &dev_attr_interrupt);
 	device_remove_file(&client->dev, &dev_attr_interrupt_map);
+	device_remove_file(&client->dev, &dev_attr_reset);
+	device_remove_file(&client->dev, &dev_attr_framerate);
 
 	gpiod_put(device->int_gpio);
 
@@ -872,6 +977,6 @@ static void __exit amg88xx_module_exit(void)
 module_exit(amg88xx_module_exit);
 
 MODULE_VERSION("1.0");
-MODULE_AUTHOR("Iiro Vuorio");
+MODULE_AUTHOR("Iiro Vuorio <iiro.vuorio@gmail.com>");
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("A kernel driver for the Panasonic AMG88xx-series sensors.");
