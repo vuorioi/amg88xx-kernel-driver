@@ -101,6 +101,8 @@ This driver exposes the following sysfs files:
    * `not_active` the interrupt gpio pin is high, i.e. there isn't an active interrupt
    * This file will recieve a notify from the kernel when a new interrupt is recieved. So
      the file can be poll()'ed by userspace programs. TODO add an example.
+ * `interrupt_map` i2c register: _INT0_ to _INT7_
+   * reading this file returns a 8x8 map showing which pixels are generating interrupts
  * `thermistor` i2c registers: _TTHL_ and _TTHH_.
    * reading this file returns the thermistor output in signed integer format
  * `sensor` i2c registers: _T01L_ to _0xFF_
