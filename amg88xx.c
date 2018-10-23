@@ -52,14 +52,14 @@
 #define INTERRUPT_HYST_HIGH_REG  0x0d
 #define THERM_LOW_REG		 0x0e
 #define THERM_HIGH_REG		 0x0f
-#define PIXEL_ROW1_REG		 0x10 //TODO | one sysfs entry
-#define PIXEL_ROW2_REG		 0x11 //TODO |
-#define PIXEL_ROW3_REG		 0x12 //TODO |
-#define PIXEL_ROW4_REG		 0x13 //TODO |
-#define PIXEL_ROW5_REG		 0x14 //TODO |
-#define PIXEL_ROW6_REG		 0x15 //TODO |
-#define PIXEL_ROW7_REG		 0x16 //TODO |
-#define PIXEL_ROW8_REG		 0x17 //TODO |
+#define PIXEL_ROW1_REG		 0x10
+#define PIXEL_ROW2_REG		 0x11
+#define PIXEL_ROW3_REG		 0x12
+#define PIXEL_ROW4_REG		 0x13
+#define PIXEL_ROW5_REG		 0x14
+#define PIXEL_ROW6_REG		 0x15
+#define PIXEL_ROW7_REG		 0x16
+#define PIXEL_ROW8_REG		 0x17
 #define SENSOR_FIRST_REG	 0x80 // Pixel 1 low bits register
 #define SENSOR_LAST_REG		 0xFF // Pixel 64 high bits register
 
@@ -324,19 +324,37 @@ static int amg88xx_read_thermistor(struct amg88xx *dev, s16 *result)
 
 static int amg88xx_read_sensor(struct amg88xx *dev, s16 *res_array)
 {
-	int index;
+	int i;
 	int ret;
 	u8 reg_addr = SENSOR_FIRST_REG;
 
 	// Loop through all the sensor registers
-	for (index = 0; index < 64; index++) {
+	for (i = 0; i < 64; i++) {
 		ret = amg88xx_read16(dev->client, reg_addr, reg_addr + 1);
 		if (ret < 0)
 			return ret;
 
-		convert_to_s16(res_array[index], ret);
-
+		convert_to_s16(res_array[i], ret);
 		reg_addr += 2;
+	}
+
+	return 0;
+}
+
+static int amg88xx_read_interrupt_map(struct amg88xx *dev, u8 *res_array)
+{
+	int i;
+	int ret;
+	u8 reg_addr = PIXEL_ROW1_REG;
+	
+	// Lopp trough all the interrupt map registers
+	for (i = 0; i < 8; i++) {
+		ret = amg88xx_read8(dev->client, reg_addr);
+		if (ret < 0)
+			return ret;
+
+		res_array[i] = ret;
+		reg_addr++;
 	}
 
 	return 0;
@@ -371,14 +389,14 @@ static ssize_t show_sensor(struct device *dev, struct device_attribute *attr,
 			 * and there is newline character after the last value
 			 */
 			nwrite = scnprintf(&buf[index],
-					   PAGE_SIZE - (index - 1),
+					   PAGE_SIZE - index,
 					   col < 7 ? "%d, " : "%d\n",
 					   sensor_array[row*8 + col]);
-			index += nwrite + 1;
+			index += nwrite;
 		}
 	}
 
-	return index - 1;
+	return index;
 }
 static DEVICE_ATTR(sensor, S_IRUGO, show_sensor, NULL);
 
@@ -702,6 +720,40 @@ static ssize_t show_interrupt(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR(interrupt, S_IRUGO, show_interrupt, NULL);
 
+static ssize_t show_interrupt_map(struct device *dev, struct device_attribute *attr,
+				  char *buf)
+{
+	struct amg88xx *device;
+	int row;
+	int col;
+	int nwrite;
+	int ret;
+	u8 int_array[8];
+	int index = 0;
+
+	device = dev_get_drvdata(dev);
+
+	//TODO read interrupt array
+	ret = amg88xx_read_interrupt_map(device, int_array);
+	if (ret < 0) {
+		dev_err(dev, "Failed to read the interrupt map\n");
+		return ret;
+	}
+
+	for (row = 0; row < 8; row++) {
+		for (col = 0; col < 8; col++) {
+			nwrite = scnprintf(&buf[index],
+					   PAGE_SIZE - index,
+					   col < 7 ? "%s, " : "%s\n",
+					   int_array[row] & 1 << col ? "1" : "0");
+			index += nwrite;
+		}
+	}
+
+	return index;
+}
+static DEVICE_ATTR(interrupt_map, S_IRUGO, show_interrupt_map, NULL);
+
 // TODO all the rest of the sysfs stuff
 // TODO group attributes
 
@@ -752,6 +804,7 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	device_create_file(&client->dev, &dev_attr_interrupt_state);
 	device_create_file(&client->dev, &dev_attr_interrupt_levels);
 	device_create_file(&client->dev, &dev_attr_interrupt);
+	device_create_file(&client->dev, &dev_attr_interrupt_map);
 
 	return 0;
 }
@@ -769,6 +822,7 @@ static int amg88xx_remove(struct i2c_client *client)
 	device_remove_file(&client->dev, &dev_attr_interrupt_state);
 	device_remove_file(&client->dev, &dev_attr_interrupt_levels);
 	device_remove_file(&client->dev, &dev_attr_interrupt);
+	device_remove_file(&client->dev, &dev_attr_interrupt_map);
 
 	gpiod_put(device->int_gpio);
 
