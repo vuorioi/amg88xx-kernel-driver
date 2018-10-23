@@ -960,20 +960,9 @@ static struct i2c_driver amg88xx_driver = {
 	.remove	   = amg88xx_remove,
 	.id_table  = amg88xx_id_table,
 };
-
-static int __init amg88xx_module_init(void)
-{
-	return i2c_add_driver(&amg88xx_driver);
-}
-module_init(amg88xx_module_init);
-
-static void __exit amg88xx_module_exit(void)
-{
-	i2c_del_driver(&amg88xx_driver);
-}
-module_exit(amg88xx_module_exit);
+module_i2c_driver(amg88xx_driver);
 
 MODULE_VERSION("1.0");
 MODULE_AUTHOR("Iiro Vuorio <iiro.vuorio@gmail.com>");
 MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("A kernel driver for the Panasonic AMG88xx-series sensors.");
+MODULE_DESCRIPTION("A kernel driver for the Panasonic AMG88xx-series sensors");
