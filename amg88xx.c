@@ -676,7 +676,7 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 		strncpy(temp, &buf[index], strl);
 		temp[strl] = '\0';
 
-		// Convert the value to u16 number and check for upper limit
+		// Convert the value to s16 number and check for upper limit
 		ret = kstrtos16(temp, 10, &values[i]);
 		if (ret < 0) {
 			dev_err(dev, "Failed to read value for %s from input\n",
