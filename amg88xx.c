@@ -37,31 +37,31 @@
 	dst = src & 0x800 ? (src | (0xf << 12)) : src
 
 /* i2c register addresses */
-#define DEVICE_MODE_REG		 0x00
-#define RESET_REG		 0x01
-#define FRAMERATE_REG		 0x02
-#define INTERRUPT_CTRL_REG	 0x03
-#define STATUS_FLAG_REG		 0x04 //TODO | one sysfs entry
-#define STATUS_FLAG_CLR_REG	 0x05 //TODO |
-#define MOVING_AVERAGE_REG	 0x07 //TODO
-#define UPPER_INTERRUPT_LOW_REG  0x08
-#define UPPER_INTERRUPT_HIGH_REG 0x09
-#define LOWER_INTERRUPT_LOW_REG	 0x0a
-#define LOWER_INTERRUPT_HIGH_REG 0x0b
-#define INTERRUPT_HYST_LOW_REG	 0x0c
-#define INTERRUPT_HYST_HIGH_REG  0x0d
-#define THERM_LOW_REG		 0x0e
-#define THERM_HIGH_REG		 0x0f
-#define PIXEL_ROW1_REG		 0x10
-#define PIXEL_ROW2_REG		 0x11
-#define PIXEL_ROW3_REG		 0x12
-#define PIXEL_ROW4_REG		 0x13
-#define PIXEL_ROW5_REG		 0x14
-#define PIXEL_ROW6_REG		 0x15
-#define PIXEL_ROW7_REG		 0x16
-#define PIXEL_ROW8_REG		 0x17
-#define SENSOR_FIRST_REG	 0x80 // Pixel 1 low bits register
-#define SENSOR_LAST_REG		 0xFF // Pixel 64 high bits register
+#define DEVICE_MODE_REG			0x00
+#define RESET_REG			0x01
+#define FRAMERATE_REG			0x02
+#define INTERRUPT_CTRL_REG		0x03
+#define STATUS_FLAG_REG			0x04 //TODO | one sysfs entry
+#define STATUS_FLAG_CLR_REG		0x05 //TODO |
+#define MOVING_AVERAGE_REG		0x07 //TODO
+#define UPPER_INTERRUPT_LOW_REG		0x08
+#define UPPER_INTERRUPT_HIGH_REG	0x09
+#define LOWER_INTERRUPT_LOW_REG		0x0a
+#define LOWER_INTERRUPT_HIGH_REG	0x0b
+#define INTERRUPT_HYST_LOW_REG		0x0c
+#define INTERRUPT_HYST_HIGH_REG		0x0d
+#define THERM_LOW_REG			0x0e
+#define THERM_HIGH_REG			0x0f
+#define PIXEL_ROW1_REG			0x10
+#define PIXEL_ROW2_REG			0x11
+#define PIXEL_ROW3_REG			0x12
+#define PIXEL_ROW4_REG			0x13
+#define PIXEL_ROW5_REG			0x14
+#define PIXEL_ROW6_REG			0x15
+#define PIXEL_ROW7_REG			0x16
+#define PIXEL_ROW8_REG			0x17
+#define SENSOR_FIRST_REG		0x80 // Pixel 1 low bits register
+#define SENSOR_LAST_REG			0xFF // Pixel 64 high bits register
 
 /* 
  * Low level access helper functions
