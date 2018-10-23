@@ -447,13 +447,13 @@ static ssize_t store_device_mode(struct device *dev, struct device_attribute *at
 
 	device = dev_get_drvdata(dev);
 
-	if (strncmp("normal\n", buf, count) == 0) {
+	if (sysfs_streq("normal", buf)) {
 		mode = NORMAL_MODE;
-	} else if (strncmp("sleep\n", buf, count) == 0) {
+	} else if (sysfs_streq("sleep", buf)) {
 		mode = SLEEP_MODE;
-	} else if (strncmp("standby_60\n", buf, count) == 0) {
+	} else if (sysfs_streq("standby_60", buf)) {
 		mode = STANDBY60_MODE;
-	} else if (strncmp("standby_10\n", buf, count) == 0) {
+	} else if (sysfs_streq("standby_10", buf)) {
 		mode = STANDBY10_MODE;
 	} else {
 		dev_err(dev, "Input is not a supported mode\n");
@@ -504,9 +504,9 @@ static ssize_t store_interrupt_mode(struct device *dev, struct device_attribute 
 
 	device = dev_get_drvdata(dev);
 
-	if (strncmp("absolute\n", buf, count) == 0) {
+	if (sysfs_streq("absolute", buf)) {
 		mode = ABSOLUTE_VALUE_MODE;
-	} else if (strncmp("differential\n", buf, count) == 0) {
+	} else if (sysfs_streq("differential", buf)) {
 		mode = DIFFERENCE_MODE; //FIXME
 	} else {
 		dev_err(dev, "Invalid interrupt mode\n");
@@ -557,9 +557,9 @@ static ssize_t store_interrupt_state(struct device *dev, struct device_attribute
 
 	device = dev_get_drvdata(dev);
 
-	if (strncmp("enabled\n", buf, count) == 0) {
+	if (sysfs_streq("enabled\n", buf)) {
 		state = INT_ENABLED;
-	} else if (strncmp("disabled\n", buf, count) == 0) {
+	} else if (sysfs_streq("disabled", buf)) {
 		state = INT_DISABLED;
 	} else {
 		dev_err(dev, "Invalid interrupt state\n");
