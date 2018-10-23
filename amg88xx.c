@@ -856,7 +856,25 @@ static DEVICE_ATTR(framerate,
 		   store_framerate);
 
 // TODO all the rest of the sysfs stuff
-// TODO group attributes
+
+static const struct attribute *amg88xx_attrs[] = {
+	&dev_attr_sensor.attr,
+	&dev_attr_thermistor.attr,
+	&dev_attr_device_mode.attr,
+	&dev_attr_interrupt_mode.attr,
+	&dev_attr_interrupt_state.attr,
+	&dev_attr_interrupt_levels.attr,
+	&dev_attr_interrupt.attr,
+	&dev_attr_interrupt_map.attr,
+	&dev_attr_reset.attr,
+	&dev_attr_framerate.attr,
+	// TODO create sysfs entries
+	NULL,
+};
+
+static const struct attribute_group amg88xx_attr_group = {
+	.attrs = amg88xx_attrs,
+};
 
 static int amg88xx_probe_new(struct i2c_client *client)
 {
@@ -896,18 +914,11 @@ static int amg88xx_probe_new(struct i2c_client *client)
 		return ret;
 	}
 
-	// TODO create sysfs entries
-	// TODO move sysfs entries to attribute group
-	device_create_file(&client->dev, &dev_attr_sensor);
-	device_create_file(&client->dev, &dev_attr_thermistor);
-	device_create_file(&client->dev, &dev_attr_device_mode);
-	device_create_file(&client->dev, &dev_attr_interrupt_mode);
-	device_create_file(&client->dev, &dev_attr_interrupt_state);
-	device_create_file(&client->dev, &dev_attr_interrupt_levels);
-	device_create_file(&client->dev, &dev_attr_interrupt);
-	device_create_file(&client->dev, &dev_attr_interrupt_map);
-	device_create_file(&client->dev, &dev_attr_reset);
-	device_create_file(&client->dev, &dev_attr_framerate);
+	ret = devm_device_add_group(&client->dev, &amg88xx_attr_group);
+	if (ret < 0) {
+		dev_err(&client->dev, "Failed to add sysfs attributes\n");
+		return ret;
+	}
 
 	return 0;
 }
@@ -916,18 +927,6 @@ static int amg88xx_remove(struct i2c_client *client)
 {
 	int ret;
 	struct amg88xx *device = dev_get_drvdata(&client->dev);
-
-	// TODO clear sysfs entries
-	device_remove_file(&client->dev, &dev_attr_sensor);
-	device_remove_file(&client->dev, &dev_attr_thermistor);
-	device_remove_file(&client->dev, &dev_attr_device_mode);
-	device_remove_file(&client->dev, &dev_attr_interrupt_mode);
-	device_remove_file(&client->dev, &dev_attr_interrupt_state);
-	device_remove_file(&client->dev, &dev_attr_interrupt_levels);
-	device_remove_file(&client->dev, &dev_attr_interrupt);
-	device_remove_file(&client->dev, &dev_attr_interrupt_map);
-	device_remove_file(&client->dev, &dev_attr_reset);
-	device_remove_file(&client->dev, &dev_attr_framerate);
 
 	gpiod_put(device->int_gpio);
 
