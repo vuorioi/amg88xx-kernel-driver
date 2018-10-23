@@ -888,7 +888,7 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	else
 		device->client = client;
 
-	device->int_gpio = gpiod_get(&client->dev, "interrupt", GPIOD_IN);
+	device->int_gpio = devm_gpiod_get(&client->dev, "interrupt", GPIOD_IN);
 	if (IS_ERR(device->int_gpio)) {
 		dev_err(&client->dev, "Failed to get a gpio line for interrupt\n");
 		return PTR_ERR(device->int_gpio);
@@ -927,8 +927,6 @@ static int amg88xx_remove(struct i2c_client *client)
 {
 	int ret;
 	struct amg88xx *device = dev_get_drvdata(&client->dev);
-
-	gpiod_put(device->int_gpio);
 
 	ret = amg88xx_set_dev_mode(device, SLEEP_MODE);
 	if (ret < 0) {
