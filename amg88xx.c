@@ -369,7 +369,7 @@ static int amg88xx_read_interrupt_map(struct amg88xx *dev, u8 *res_array)
 	int ret;
 	u8 reg_addr = PIXEL_ROW1_REG;
 	
-	// Lopp trough all the interrupt map registers
+	// Loop trough all the interrupt map registers
 	for (i = 0; i < 8; i++) {
 		ret = amg88xx_read8(dev->client, reg_addr);
 		if (ret < 0)
@@ -684,7 +684,7 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 			goto exit;
 		}
 
-		if (values[i] < -2048|| values[i] > 2047) {
+		if (values[i] < -2048 || values[i] > 2047) {
 			dev_err(dev, "Illegal input value for %s\n",
 			       i == 0 ? "upper limit" : (i == 1 ? "lower limit" : "hysteresis"));
 			ret = -EINVAL;
