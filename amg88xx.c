@@ -1,7 +1,7 @@
 /*
  * Kernel driver for the Panasonic AMG88xx-series sensors
  *
- * Copyright (C) 2018  Iiro Vuorio
+ * Copyright (C) 2018  Iiro Vuorio <iiro.vuorio@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -113,10 +113,10 @@ static int amg88xx_write16(struct i2c_client *client, u8 regl, u8 regh, u16 valu
  * Device configuration options that are mapped to register values
  */
 enum amg88xx_device_mode {
-	NORMAL_MODE = 0x0,
-	SLEEP_MODE = 0x10,
-	STANDBY60_MODE = 0x20,
-	STANDBY10_MODE = 0x21 };
+	NORMAL_MODE	= 0x0,
+	SLEEP_MODE	= 0x10,
+	STANDBY60_MODE	= 0x20,
+	STANDBY10_MODE	= 0x21 };
 
 static const char *mode_strs[4] = {
 	"normal",
@@ -125,27 +125,27 @@ static const char *mode_strs[4] = {
 	"standby_10" };
 
 enum amg88xx_reset_mode {
-	PARTIAL_RST = 0x30,
-	FULL_RST = 0x3f };
+	PARTIAL_RST	= 0x30,
+	FULL_RST	= 0x3f };
 
 enum amg88xx_fps {
-	FPS10 = 0,
-	FPS1 = 1 };
+	FPS10	= 0,
+	FPS1	= 1 };
 
 enum amg88xx_interrupt_mode {
-	DIFFERENCE_MODE = 0, //FIXME
-	ABSOLUTE_VALUE_MODE = 1 };
+	DIFFERENCE_MODE		= 0, //FIXME
+	ABSOLUTE_VALUE_MODE	= 1 };
 
 enum amg88xx_interrupt_state {
-	INT_DISABLED = 0,
-	INT_ENABLED = 1 };
+	INT_DISABLED	= 0,
+	INT_ENABLED	= 1 };
 
 /*
  * Structure for holding device related data
  */
 struct amg88xx {
-	struct i2c_client *client;
-	struct gpio_desc *int_gpio;
+	struct i2c_client	*client;
+	struct gpio_desc	*int_gpio;
 };
 
 /*
@@ -153,9 +153,7 @@ struct amg88xx {
  */
 static irqreturn_t irq_handler(int irq, void *dev)
 {
-	struct amg88xx *device;
-
-	device = dev;
+	struct amg88xx *device = dev;
 
 	// Signal the userspace by notifying pollers on the 'interrupt' file
 	sysfs_notify(&device->client->dev.kobj, NULL, "interrupt");
@@ -312,7 +310,7 @@ static inline int amg88xx_set_int_upper_limit(struct amg88xx *dev, s16 limit)
 	return amg88xx_write16(dev->client,
 			       UPPER_INTERRUPT_LOW_REG,
 			       UPPER_INTERRUPT_HIGH_REG,
-			       (u16)limit);
+			       limit);
 }
 
 static inline int amg88xx_set_int_lower_limit(struct amg88xx *dev, s16 limit)
@@ -320,7 +318,7 @@ static inline int amg88xx_set_int_lower_limit(struct amg88xx *dev, s16 limit)
 	return amg88xx_write16(dev->client,
 			       LOWER_INTERRUPT_LOW_REG,
 			       LOWER_INTERRUPT_HIGH_REG,
-			       (u16)limit);
+			       limit);
 }
 
 static inline int amg88xx_set_int_hysteresis(struct amg88xx *dev, s16 hysteresis)
@@ -328,7 +326,7 @@ static inline int amg88xx_set_int_hysteresis(struct amg88xx *dev, s16 hysteresis
 	return amg88xx_write16(dev->client,
 			       INTERRUPT_HYST_LOW_REG,
 			       INTERRUPT_HYST_HIGH_REG,
-			       (u16)hysteresis);
+			       hysteresis);
 }
 
 static int amg88xx_read_thermistor(struct amg88xx *dev, s16 *result)
@@ -369,7 +367,7 @@ static int amg88xx_read_interrupt_map(struct amg88xx *dev, u8 *res_array)
 	int ret;
 	u8 reg_addr = PIXEL_ROW1_REG;
 	
-	// Lopp trough all the interrupt map registers
+	// Loop trough all the interrupt map registers
 	for (i = 0; i < 8; i++) {
 		ret = amg88xx_read8(dev->client, reg_addr);
 		if (ret < 0)
@@ -567,7 +565,7 @@ static DEVICE_ATTR(interrupt_mode,
 		   store_interrupt_mode);
 
 static ssize_t show_interrupt_state(struct device *dev, struct device_attribute *attr,
-			      char *buf)
+				    char *buf)
 {
 	struct amg88xx *device;
 	int ret;
@@ -589,7 +587,7 @@ static ssize_t show_interrupt_state(struct device *dev, struct device_attribute 
 }
 
 static ssize_t store_interrupt_state(struct device *dev, struct device_attribute *attr,
-			       const char *buf, size_t count)
+				     const char *buf, size_t count)
 {
 	struct amg88xx *device;
 	int ret;
@@ -684,7 +682,7 @@ static ssize_t store_interrupt_levels(struct device *dev, struct device_attribut
 			goto exit;
 		}
 
-		if (values[i] < -2048|| values[i] > 2047) {
+		if (values[i] < -2048 || values[i] > 2047) {
 			dev_err(dev, "Illegal input value for %s\n",
 			       i == 0 ? "upper limit" : (i == 1 ? "lower limit" : "hysteresis"));
 			ret = -EINVAL;
@@ -856,7 +854,25 @@ static DEVICE_ATTR(framerate,
 		   store_framerate);
 
 // TODO all the rest of the sysfs stuff
-// TODO group attributes
+
+static const struct attribute *amg88xx_attrs[] = {
+	&dev_attr_sensor.attr,
+	&dev_attr_thermistor.attr,
+	&dev_attr_device_mode.attr,
+	&dev_attr_interrupt_mode.attr,
+	&dev_attr_interrupt_state.attr,
+	&dev_attr_interrupt_levels.attr,
+	&dev_attr_interrupt.attr,
+	&dev_attr_interrupt_map.attr,
+	&dev_attr_reset.attr,
+	&dev_attr_framerate.attr,
+	// TODO create sysfs entries
+	NULL,
+};
+
+static const struct attribute_group amg88xx_attr_group = {
+	.attrs = amg88xx_attrs,
+};
 
 static int amg88xx_probe_new(struct i2c_client *client)
 {
@@ -864,13 +880,12 @@ static int amg88xx_probe_new(struct i2c_client *client)
 	struct amg88xx *device;
 
 	device = devm_kzalloc(&client->dev, sizeof(*device), GFP_KERNEL);
-
 	if (device == NULL)
 		return -ENOMEM;
 	else
 		device->client = client;
 
-	device->int_gpio = gpiod_get(&client->dev, "interrupt", GPIOD_IN);
+	device->int_gpio = devm_gpiod_get(&client->dev, "interrupt", GPIOD_IN);
 	if (IS_ERR(device->int_gpio)) {
 		dev_err(&client->dev, "Failed to get a gpio line for interrupt\n");
 		return PTR_ERR(device->int_gpio);
@@ -896,18 +911,11 @@ static int amg88xx_probe_new(struct i2c_client *client)
 		return ret;
 	}
 
-	// TODO create sysfs entries
-	// TODO move sysfs entries to attribute group
-	device_create_file(&client->dev, &dev_attr_sensor);
-	device_create_file(&client->dev, &dev_attr_thermistor);
-	device_create_file(&client->dev, &dev_attr_device_mode);
-	device_create_file(&client->dev, &dev_attr_interrupt_mode);
-	device_create_file(&client->dev, &dev_attr_interrupt_state);
-	device_create_file(&client->dev, &dev_attr_interrupt_levels);
-	device_create_file(&client->dev, &dev_attr_interrupt);
-	device_create_file(&client->dev, &dev_attr_interrupt_map);
-	device_create_file(&client->dev, &dev_attr_reset);
-	device_create_file(&client->dev, &dev_attr_framerate);
+	ret = devm_device_add_group(&client->dev, &amg88xx_attr_group);
+	if (ret < 0) {
+		dev_err(&client->dev, "Failed to add sysfs attributes\n");
+		return ret;
+	}
 
 	return 0;
 }
@@ -916,20 +924,6 @@ static int amg88xx_remove(struct i2c_client *client)
 {
 	int ret;
 	struct amg88xx *device = dev_get_drvdata(&client->dev);
-
-	// TODO clear sysfs entries
-	device_remove_file(&client->dev, &dev_attr_sensor);
-	device_remove_file(&client->dev, &dev_attr_thermistor);
-	device_remove_file(&client->dev, &dev_attr_device_mode);
-	device_remove_file(&client->dev, &dev_attr_interrupt_mode);
-	device_remove_file(&client->dev, &dev_attr_interrupt_state);
-	device_remove_file(&client->dev, &dev_attr_interrupt_levels);
-	device_remove_file(&client->dev, &dev_attr_interrupt);
-	device_remove_file(&client->dev, &dev_attr_interrupt_map);
-	device_remove_file(&client->dev, &dev_attr_reset);
-	device_remove_file(&client->dev, &dev_attr_framerate);
-
-	gpiod_put(device->int_gpio);
 
 	ret = amg88xx_set_dev_mode(device, SLEEP_MODE);
 	if (ret < 0) {
@@ -963,20 +957,9 @@ static struct i2c_driver amg88xx_driver = {
 	.remove	   = amg88xx_remove,
 	.id_table  = amg88xx_id_table,
 };
-
-static int __init amg88xx_module_init(void)
-{
-	return i2c_add_driver(&amg88xx_driver);
-}
-module_init(amg88xx_module_init);
-
-static void __exit amg88xx_module_exit(void)
-{
-	i2c_del_driver(&amg88xx_driver);
-}
-module_exit(amg88xx_module_exit);
+module_i2c_driver(amg88xx_driver);
 
 MODULE_VERSION("1.0");
 MODULE_AUTHOR("Iiro Vuorio <iiro.vuorio@gmail.com>");
 MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("A kernel driver for the Panasonic AMG88xx-series sensors.");
+MODULE_DESCRIPTION("A kernel driver for the Panasonic AMG88xx-series sensors");
