@@ -595,7 +595,7 @@ static ssize_t store_interrupt_state(struct device *dev, struct device_attribute
 
 	device = dev_get_drvdata(dev);
 
-	if (sysfs_streq("enabled\n", buf)) {
+	if (sysfs_streq("enabled", buf)) {
 		state = INT_ENABLED;
 	} else if (sysfs_streq("disabled", buf)) {
 		state = INT_DISABLED;
@@ -855,7 +855,7 @@ static DEVICE_ATTR(framerate,
 
 // TODO all the rest of the sysfs stuff
 
-static const struct attribute *amg88xx_attrs[] = {
+static struct attribute *amg88xx_attrs[] = {
 	&dev_attr_sensor.attr,
 	&dev_attr_thermistor.attr,
 	&dev_attr_device_mode.attr,
